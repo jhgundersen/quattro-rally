@@ -3,7 +3,7 @@
 // player at the back with work to do. DHH is the ace nobody catches easily.
 export const PLAYER = 0;
 export const DRIVERS = [
-  {name:'Axel', nickname:'THE WAFFLE ROCKET', color:'#e9b85d', skin:'#e9b58e', quip:'Powered by waffles. Brakes sold separately.'},
+  {name:'Player', nickname:'THE WAFFLE ROCKET', color:'#e9b85d', skin:'#e9b58e', quip:'Powered by waffles. Brakes sold separately.'},
   {name:'Ryan', nickname:'THE FRAME RATE', color:'#82ada3', skin:'#efc7a0', quip:'Ships the overtake, patches the apex later.', skill:1.55},
   {name:'Bjarne', nickname:'ONE MORE COFFEE', color:'#d46f60', skin:'#e8c4a2', quip:'Raised an eyebrow at the whole third lap.', skill:1.4},
   // Omarchy green over Tokyo-night ink, sampled from the Omarchy wordmark.

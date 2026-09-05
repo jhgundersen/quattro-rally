@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import {DRIVERS, GRID, PLAYER} from './drivers.js';
 
 test('the player drives the amber car and nobody else has a fixed livery clash',()=>{
- assert.equal(DRIVERS[PLAYER].name,'Axel');
+ assert.equal(DRIVERS[PLAYER].name,'Player');
  assert.equal(DRIVERS[PLAYER].color,'#e9b85d');
  assert.equal(new Set(DRIVERS.map(d=>d.color)).size,DRIVERS.length);
 });
