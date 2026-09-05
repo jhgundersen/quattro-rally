@@ -47,3 +47,32 @@ test('blocked playback is handled and can retry on a player interaction',async()
   music.retry();assert.equal(audio.paused,false);
   music.setPlaying(false);music.retry();assert.equal(audio.paused,true);
 });
+
+test('beating the ace swaps in the winner track, once, and a new race puts the playlist back',()=>{
+  const audio=audioStub(),music=createSoundtrack(audio);
+  music.beginRace();music.setPlaying(true);
+  assert.equal(audio.src,'/audio/quattro-1.mp3');
+  music.finale(true);
+  assert.equal(audio.src,'/audio/quattro-winner.mp3');
+  assert.equal(audio.paused,false);
+  const plays=audio.plays;
+  music.finale(true);
+  assert.equal(audio.plays,plays,'a second podium does not restart the fanfare');
+  music.setPlaying(false);assert.equal(audio.paused,true);
+  music.setPlaying(true);assert.equal(audio.paused,false);
+  audio.end();
+  assert.equal(audio.src,'/audio/quattro-winner.mp3','the fanfare plays once and stops');
+  assert.equal(audio.paused,true);
+  music.beginRace();
+  assert.equal(audio.src,'/audio/quattro-2.mp3');
+});
+
+test('losing to the ace plays the consolation track instead',()=>{
+  const audio=audioStub(),music=createSoundtrack(audio);
+  music.beginRace();music.setPlaying(true);
+  music.finale(false);
+  assert.equal(audio.src,'/audio/quattro-not-winner.mp3');
+  assert.equal(audio.paused,false);
+  music.beginRace();
+  assert.equal(audio.src,'/audio/quattro-2.mp3','the playlist carries on next race');
+});

@@ -3,11 +3,11 @@
 // player at the back with work to do. DHH is the ace nobody catches easily.
 export const PLAYER = 0;
 export const DRIVERS = [
-  {name:'Player', nickname:'THE WAFFLE ROCKET', color:'#e9b85d', skin:'#e9b58e', quip:'Powered by waffles. Brakes sold separately.'},
-  {name:'Ryan', nickname:'THE FRAME RATE', color:'#82ada3', skin:'#efc7a0', quip:'Ships the overtake, patches the apex later.', skill:1.55},
-  {name:'Bjarne', nickname:'ONE MORE COFFEE', color:'#d46f60', skin:'#e8c4a2', quip:'Raised an eyebrow at the whole third lap.', skill:1.4},
+  {name:'Player', nickname:'THE WAFFLE ROCKET', color:'#e9b85d', skin:'#e9b58e', quips:['Powered by waffles. Brakes sold separately.','Insists the barrier moved first.','Has a plan for lap two. It is more nitro.','Drove the whole race with the handbrake on. Allegedly.']},
+  {name:'Ryan', nickname:'THE FRAME RATE', color:'#82ada3', skin:'#efc7a0', quips:['Ships the overtake, patches the apex later.','Says the corner worked fine on his machine.','Refactored the racing line mid-lap.','Would like to open an issue about that kerb.'], skill:1.55},
+  {name:'Bjarne', nickname:'ONE MORE COFFEE', color:'#d46f60', skin:'#e8c4a2', quips:['Raised an eyebrow at the whole third lap.','Finished the coffee before the cool-down lap.','Calls that overtake undefined behaviour.','Was promised a smoother surface than this.'], skill:1.4},
   // Omarchy green over Tokyo-night ink, sampled from the Omarchy wordmark.
-  {name:'DHH', nickname:'THE FLYING DANE', color:'#9ece6a', trim:'#1a1b26', skin:'#f0cbaa', quip:'Says the whole race could have been a hairpin.', ace:true, skill:2.2},
+  {name:'DHH', nickname:'THE FLYING DANE', color:'#9ece6a', trim:'#1a1b26', skin:'#f0cbaa', quips:['Says the whole race could have been a hairpin.','Already writing a post about the apex.','Won it on lap one, drove the rest for the photos.','Suggests the rest of you try convention over configuration.'], ace:true, skill:2.2},
 ];
 // Starting order: the quickest car leads the field away, the player is last.
 export const GRID = DRIVERS.map((d,i)=>i).sort((a,b)=>(DRIVERS[b].skill||0)-(DRIVERS[a].skill||0));
