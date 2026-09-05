@@ -16,7 +16,7 @@ for(const track of TRACKS) {
     for(let frame=0;frame<60*180&&!cars.every(c=>c.finished);frame++) {
       for(const c of cars){
         const previous=c.progress;
-        driveCar(c,world,track,1/60,aiControls(c,world,track));
+        driveCar(c,world,track,1/60,aiControls(c,world,track,cars));
         assert.ok(Number.isFinite(c.x)&&Number.isFinite(c.z));
         assert.ok(Math.abs(c.progress-previous)<.015,'no teleporting to an adjacent lane');
         highestJump=Math.max(highestJump,c.air);
@@ -25,6 +25,8 @@ for(const track of TRACKS) {
       collideCars(cars);
     }
     assert.ok(cars.every(c=>c.finished),`stalled drivers: ${cars.map(c=>c.progress.toFixed(2)).join(', ')}`);
+    const paceLimits={gravel:58,forest:82,desert:71,alpine:65,garage:74};
+    assert.ok(Math.max(...cars.map(c=>c.finishTime))<paceLimits[track.id],'rivals maintain competitive three-lap pace');
     assert.ok(highestJump>.6,'drivers reach the jump sections');
   });
 }

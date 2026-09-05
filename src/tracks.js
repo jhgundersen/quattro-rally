@@ -1,4 +1,6 @@
 export const SURFACES = {
+  concrete: { grip: 5.8, drag: .5, power: 1, color: '#b3bcc2', label: 'CONCRETE' },
+  oil: { grip: 1.3, drag: .45, power: .9, color: '#716481', label: 'OIL · MIND THE SLIDE' },
   gravel: { grip: 4.2, drag: .55, power: 1, color: '#cfb78b', label: 'GRAVEL' },
   mud: { grip: 2.7, drag: 1.6, power: .72, color: '#74523b', label: 'MUD · HEAVY GOING' },
   water: { grip: 2, drag: 2.1, power: .65, color: '#a2d8db', label: 'WATER · SHALLOW FORD' },
@@ -29,11 +31,17 @@ export const TRACKS = [
     points:[[-40,9],[-45,0],[-40,-9],[-23,-9],[-13,-19],[-13,-26],[-4,-33],[5,-26],[5,-19],[15,-9],[33,-9],[39,0],[33,9],[15,9],[5,19],[5,26],[-4,33],[-13,26],[-13,19],[-23,9]], jumps:[.14,.40,.64],
     patches:[{t:.20,lane:0,type:'ice',length:7,width:9},{t:.48,lane:0,type:'ice',length:7,width:9},{t:.72,lane:1,type:'water',length:5,width:5},{t:.90,lane:0,type:'ice',length:7,width:9}],
     obstacles:[{t:.34,lane:2.9,type:'tree',radius:.8},{t:.59,lane:-2.9,type:'rock',radius:1},{t:.85,lane:2.9,type:'tree',radius:.8}] },
+  { id:'garage', name:'Maximum Parking', biome:'PARKING GARAGE', difficulty:3, rating:'PRO', width:9, aiSpeed:21, seed:305,
+    layout:'CONCRETE PAPERCLIP', revision:1, surface:'concrete', landmark:[0,1], banner:[0,-37],
+    ground:'#78848a', road:'#505c66', rut:'#54616b', edge:'#f4ce69', rock:'#a2aeb5', sky:'#495866', sun:'#deebff', foliage:'#71868b', tip:'No ticket. No speed limit. Thread the parking aisles, jump the ramps, and dodge the oil.',
+    points:[[-44,26],[-44,0],[-44,-26],[0,-29],[44,-26],[44,0],[44,26],[12,26],[12,8],[28,8],[28,-10],[0,-10],[-26,-10],[-26,10],[-8,10],[-8,26]],
+    jumps:[.20,.49], patches:[{t:.37,lane:1.8,type:'oil',length:8,width:4},{t:.80,lane:-2,type:'oil',length:6,width:3}],
+    obstacles:[{t:.13,lane:3,type:'cone',radius:.65},{t:.61,lane:-3,type:'cone',radius:.65}] },
 ];
-export function surfaceAt(x,z,air,patches) {
-  if(air>.4)return 'gravel';
+export function surfaceAt(x,z,air,patches,base='gravel') {
+  if(air>.4)return base;
   for(const p of patches){const dx=x-p.x,dz=z-p.z;const along=dx*p.dx+dz*p.dz,across=-dx*p.dz+dz*p.dx;if((along/(p.length/2))**2+(across/(p.width/2))**2<=1)return p.type;}
-  return 'gravel';
+  return base;
 }
 export function collideObstacle(car,obstacle) {
   if(car.air>obstacle.height)return false;

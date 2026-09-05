@@ -21,7 +21,7 @@ Distilled on 2026-09-05. This records project context and verified session outco
 
 ## Gameplay and architecture
 
-Races have one player, three AI opponents, and three laps. Controls: WASD/arrows to drive, Space for rechargeable nitro, P/Escape to pause, R to restart, Enter to start/replay. Narrow screens have touch controls. Engine audio is synthesized and opt-in. Losing focus pauses the race.
+Races have one player, three AI opponents, and three laps. Controls: WASD/arrows to drive, Space for rechargeable nitro, P/Escape to pause, R to restart, Enter to start/replay. Narrow screens have touch controls. Engine audio is synthesized; sound defaults to on and the race-start interaction unlocks playback. The supplied Quattro MP3 playlist accompanies races and the podium. Losing focus pauses the race.
 
 | File | Responsibility |
 | --- | --- |
@@ -30,12 +30,14 @@ Races have one player, three AI opponents, and three laps. Controls: WASD/arrows
 | `src/course.js` | Shared curve geometry, course queries, and selector previews |
 | `src/world.js` | Procedural terrain, barriers, arrows, jumps, scenery, and resource disposal |
 | `src/physics.js` | Shared player/AI driving, AI controls, and car collisions |
-| `src/race.js` | Lap progression, heading wrapping, and time formatting |
+| `src/race.js` | Lap progression, heading wrapping, time formatting, and finish-order sorting |
+| `src/drivers.js` | Four driver identities, liveries, and original SVG portraits |
+| `src/soundtrack.js` | Lazy MP3 playback, playlist rotation, pause/resume, and autoplay retry |
 | `index.html`, `src/style.css` | Page, race HUD, overlays, course cards, and responsive controls |
 
 - Physics uses a fixed 60 Hz step; rendering uses `renderer.setAnimationLoop`.
 - Camera position `(90, 90, 90)` looking at the origin gives 45° azimuth and approximately 35.3° elevation. Orthographic framing fits each course in camera space, including road margins, airborne cars, banners, and relevant scenery. Recalculate on track changes and viewport resize.
-- Best times are local and separated by course revision: `quattro-best-${track.id}-v${track.revision}`. Current layouts are revision 2. Increment revisions when layout changes invalidate previous times; retain older stored records.
+- Best times are local and separated by course revision: `quattro-best-${track.id}-v${track.revision}`. The original four layouts are revision 2; the garage is revision 1. Increment revisions when layout changes invalidate previous times; retain older stored records.
 - `window.quattro` exposes read-only telemetry such as track, state, race time, cars, and draw calls.
 
 ## Courses and layout lessons
@@ -46,6 +48,7 @@ Races have one player, three AI opponents, and three laps. Controls: WASD/arrows
 | `forest` / Black Pine Run | Forest, 2/4 Clubman | Twin hairpins, folded infield, water crossing, mud, trees, fallen log |
 | `desert` / Red Rock Scramble | Desert, 3/4 Pro | Canyon switchback, parallel straights joined by 180° turns, sand, rocks, four jumps |
 | `alpine` / Frostbite Pass | Alpine, 4/4 Expert | Frozen cloverleaf, four lobes, alternating turns, ice, meltwater, trees, rocks |
+| `garage` / Maximum Parking | Parking garage, 3/4 Pro | Concrete paperclip, folded aisles, oil slicks, cones, two ramps, parking bays and parked cars |
 
 - Difficulty combines geometry, narrowing road width, hazards, and increasing AI target speed.
 - The road uses a custom periodic cubic B-spline (`ArenaCurve`). Earlier Catmull–Rom curves produced tight bends where inner road edges and barriers folded or crossed. Preserve smooth curvature and adequate lane separation when editing control points.
@@ -76,3 +79,20 @@ Races have one player, three AI opponents, and three laps. Controls: WASD/arrows
 - Deployment user `quattro-deploy` is restricted to write-only rsync into `/srv/quattro` using a forced `rrsync` command. Root-owned authorized keys are outside that upload directory at `/var/lib/quattro-deploy/.ssh/authorized_keys`; keep this separation.
 - Routine releases require pushing the code, not manually changing the server. Inspect GitHub Actions with `gh run list` and `gh run watch <id> --repo jhgundersen/quattro-rally --exit-status`. Roll back with a revert on `main`.
 - If the SSH key needs unlocking, use the local SSH agent (`ssh-add ~/.ssh/id_ed25519`), never a passphrase in chat or source. Sandbox network failures can resemble authentication failures; verify the cause before replacing credentials.
+
+## Garage, drivers and podium update
+
+- Drivers are Axel (amber), Moss (sage), Roxy (coral), and Lumi (lavender). Selection rotates the driver identities, car liveries and number decals together; the player remains car index 0.
+- Portraits sit in a strip above the course to avoid hiding the road.
+- After the player finishes, `finishing` continues rival physics for up to 25 seconds. The podium updates as rivals finish, then `finished` freezes results; unfinished cars display DNF. `paused-finishing` preserves this phase on blur/pause. The HUD freezes the player's completion time.
+- Results use finish time for finishers and progress for unfinished cars. Replay and next-stage actions reset the results screen. CSS animations respect reduced motion.
+- Garage concrete is a base surface; oil is a low-grip patch. Course geometry tests and four-car simulations cover all five courses, including competitive pace limits.
+- AI samples curvature at multiple distances, budgets braking distance, uses nitro on straights, and picks passing lanes. Before/after four-car simulations showed roughly 8–19% shorter race times on the original courses; this does not establish human race difficulty.
+- Chromium QA checked all five course views, mobile HUD/results, a complete simulated garage race, winner/waiting/DNF results, replay and next stage. Temporary QA controls were removed. This was not a complete human-driven race.
+
+## Soundtrack update
+
+- Supplied downloads `Quattro #1.mp3`, `Quattro #2.mp3`, and `Quattro #3.mp3` were copied unchanged to `public/audio/quattro-1.mp3` through `quattro-3.mp3`. Source downloads were preserved.
+- Sound defaults to on. The existing sound button controls music and engine audio together, with matching accessible labels and pressed state. Race start/resume provides browser user activation.
+- The playlist advances when a song ends and wraps; each new race starts with the next song. Music continues during results, pauses on race pause/mute/blur/hidden tabs, and stops in course selection. Resuming preserves position. No MP3 preload before racing.
+- Playlist tests cover looping, race rotation, pause continuity, and rejected playback recovery. Chromium verified actual MP3 playback, pause/resume, mute/unmute, and song rotation.

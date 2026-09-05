@@ -9,3 +9,8 @@ export function advanceProgress(previous, next, progress) {
 export function formatTime(seconds) {
   return `${String(Math.floor(seconds / 60)).padStart(2, '0')}:${(seconds % 60).toFixed(2).padStart(5, '0')}`;
 }
+
+export function raceStandings(cars) {
+  return [...cars].sort((a,b)=>Number(b.finished)-Number(a.finished)||
+    (a.finished?a.finishTime-b.finishTime:b.progress-a.progress)||a.i-b.i);
+}

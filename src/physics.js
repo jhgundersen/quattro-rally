@@ -2,30 +2,48 @@ import {wrap,advanceProgress} from './race.js';
 import {SURFACES,surfaceAt,collideObstacle} from './tracks.js';
 const clamp=(v,a,b)=>Math.max(a,Math.min(b,v));
 
-export function aiControls(c,world,track) {
+export function aiControls(c,world,track,cars=[]) {
   const near=world.nearest(c.x,c.z),speed=Math.hypot(c.vx,c.vz);
-  // Measure lookahead in metres so long, folded courses don't cut hairpins.
-  let lane=(c.i-2)*.85;
-  for(const o of track.obstacles) {
-    if(((o.t-near.t+1)%1)*world.length<13)lane=o.lane>0?-1.5:1.5;
+  let lane=(c.i-1.5)*.65;
+  // Commit to a clear passing lane before reaching a slower car.
+  for(const other of cars){
+    if(other===c)continue;
+    const gap=((other.t-near.t+1)%1)*world.length;
+    if(gap>1&&gap<10&&speed>Math.hypot(other.vx,other.vz)-1){
+      const otherLane=(other.x-near.point.x)*-near.dir.z+(other.z-near.point.z)*near.dir.x;
+      lane=otherLane>0?-1.8:1.8;
+    }
   }
-  const lookahead=(3.1+speed*.17)/world.length;
+  for(const o of track.obstacles) {
+    if(((o.t-near.t+1)%1)*world.length<16)lane=o.lane>0?-1.7:1.7;
+  }
+  const lookahead=(3.4+speed*.18)/world.length;
   const target=world.at(near.t+lookahead,lane);
   const error=wrap(Math.atan2(target.x-c.x,target.z-c.z)-c.angle);
-  const ahead=world.curve.getTangentAt((near.t+10/world.length)%1);
-  const turn=Math.abs(wrap(Math.atan2(ahead.x,ahead.z)-Math.atan2(near.dir.x,near.dir.z)));
-  const desired=Math.max(9,(track.aiSpeed+c.i*.6)*(1-Math.min(turn*.48,.53)));
+  // Use a physical corner speed and braking distance, instead of slowing
+  // through the entire approach to every bend. Player and AI share forces.
+  let desired=track.aiSpeed+5+c.i*.35,maxTurn=0;
+  const grip=SURFACES[surfaceAt(c.x,c.z,c.air,world.patches,track.surface)].grip;
+  for(const distance of [3,7,12,19]){
+    const a=world.curve.getTangentAt((near.t+distance/world.length)%1);
+    const b=world.curve.getTangentAt((near.t+(distance+2)/world.length)%1);
+    const curvature=Math.max(.001,a.angleTo(b)/2);
+    const corner=Math.min(25,Math.sqrt((grip<2?12:23)/curvature));
+    desired=Math.min(desired,Math.sqrt(corner*corner+2*10*Math.max(0,distance-3)));
+    maxTurn=Math.max(maxTurn,Math.abs(wrap(Math.atan2(a.x,a.z)-Math.atan2(near.dir.x,near.dir.z))));
+  }
+  desired*=1-Math.min(Math.abs(error)*.12,.3);
   return {
-    throttle:speed>desired+1.5?-.7:speed>desired?0:1,
-    steer:clamp(error*2.3,-1,1),
-    boost:turn<.12&&Math.abs(error)<.12&&c.nitro>30&&speed>13,
+    throttle:speed>desired+1?-.8:speed>desired?0:1,
+    steer:clamp(error*2.6,-1,1),
+    boost:maxTurn<.32&&Math.abs(error)<.17&&c.nitro>8&&speed>10&&speed<desired+2&&near.distance<track.width*.3,
     brake:false,
   };
 }
 
 export function driveCar(c,world,track,dt,controls) {
   const near=world.nearest(c.x,c.z);
-  c.surface=surfaceAt(c.x,c.z,c.air,world.patches);
+  c.surface=surfaceAt(c.x,c.z,c.air,world.patches,track.surface);
   const surface=SURFACES[c.surface];
   let {throttle=0,steer=0,brake=false,boost=false}=controls;
   const speed=Math.hypot(c.vx,c.vz),forward=c.vx*Math.sin(c.angle)+c.vz*Math.cos(c.angle);

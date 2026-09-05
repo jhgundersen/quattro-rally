@@ -27,10 +27,10 @@ test('exact obstacle-center collision remains finite',()=>{
  const car={x:0,z:0,vx:0,vz:0,air:0};collideObstacle(car,{x:0,z:0,radius:1,height:1});
  assert.ok(Number.isFinite(car.x));assert.ok(Math.hypot(car.x,car.z)>1);
 });
-test('every track has distinct geometry and increasing difficulty, with passable obstacles',()=>{
- assert.equal(new Set(TRACKS.map(t=>t.id)).size,4);
- assert.equal(new Set(TRACKS.map(t=>JSON.stringify(t.points))).size,4);
- TRACKS.forEach((t,i)=>{assert.equal(t.difficulty,i+1);if(i){assert.ok(t.width<TRACKS[i-1].width);assert.ok(t.aiSpeed>TRACKS[i-1].aiSpeed);}
+test('every track has distinct geometry, valid difficulty and passable obstacles',()=>{
+ assert.equal(new Set(TRACKS.map(t=>t.id)).size,TRACKS.length);
+ assert.equal(new Set(TRACKS.map(t=>JSON.stringify(t.points))).size,TRACKS.length);
+ TRACKS.forEach((t,i)=>{assert.ok(t.difficulty>=1&&t.difficulty<=4);if(i&&i<4){assert.ok(t.width<TRACKS[i-1].width);assert.ok(t.aiSpeed>TRACKS[i-1].aiSpeed);}
   for(const o of t.obstacles)assert.ok(t.width/2+Math.abs(o.lane)-o.radius>3,'obstacles leave a drivable lane');
   for(const p of t.patches)assert.ok(SURFACES[p.type]);
   const {curve,length}=createCourse(t);
@@ -43,4 +43,13 @@ test('every track has distinct geometry and increasing difficulty, with passable
   const samples=Array.from({length:160},(_,j)=>curve.getPointAt(j/160));
   for(let a=0;a<160;a++)for(let b=a+1;b<160;b++){const separation=Math.min(b-a,160-(b-a))*length/160;if(separation>t.width*2)assert.ok(samples[a].distanceTo(samples[b])>t.width+1.7,`${t.id}: overlapping course sections`);}
  });
+});
+
+test('garage concrete provides grip while oil is slippery, including surface reset after a patch',()=>{
+ assert.ok(SURFACES.concrete.grip>SURFACES.gravel.grip);
+ assert.ok(SURFACES.oil.grip<SURFACES.concrete.grip/2);
+ const patch={x:0,z:0,dx:0,dz:1,length:8,width:4,type:'oil'};
+ assert.equal(surfaceAt(0,0,0,[patch],'concrete'),'oil');
+ assert.equal(surfaceAt(8,0,0,[patch],'concrete'),'concrete');
+ assert.equal(surfaceAt(0,0,1,[patch],'concrete'),'concrete');
 });
