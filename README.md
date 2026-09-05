@@ -22,3 +22,16 @@ Open the local URL printed by Vite. `npm run build` creates a static production 
 Finish three forward laps against three AI opponents. Tire barriers and collisions slow you down; two dirt jumps send the cars airborne. Your best completion time is saved locally. Switching tabs pauses the race.
 
 `npm test` checks lap crossing, reverse-lap protection, angle wrapping, and timing. Physics runs at a fixed 60 Hz. Rendering uses Three.js's recommended [setAnimationLoop](https://threejs.org/docs/pages/WebGLRenderer.html).
+
+## Production deployment
+
+Live at **https://quattro.jonh.no**. Every push to `main` runs `.github/workflows/deploy.yml`: install locked dependencies, test, build, upload `dist`, and compare the live HTTPS index with the build. You can also run it manually from GitHub Actions. Deployments are serialized.
+
+The existing `/root/website` Docker Compose nginx serves a read-only mount of `/srv/quattro` at `/www/quattro`. Configuration is installed at `/root/website/config/nginx/quattro.conf`; its source is `deploy/quattro-https.conf`. The HTTP-only configuration is retained for initial certificate bootstrapping. Existing Certbot renewal and nginx reload loops maintain the dedicated `quattro.jonh.no` certificate.
+
+GitHub repository configuration:
+- Secret `DEPLOY_KEY`: dedicated SSH key, restricted server-side to write-only rsync in `/srv/quattro`.
+- Secret `DEPLOY_KNOWN_HOSTS`: pinned server host keys.
+- Variable `DEPLOY_HOST`: server IP address.
+
+The `quattro-deploy` account has no general SSH command access. Its root-owned authorized keys live outside the upload directory at `/var/lib/quattro-deploy/.ssh/authorized_keys`. The game's files are separate from the main website's deployment directory. To roll back, revert the relevant commit on `main`; the workflow republishes the previous version.
