@@ -1,8 +1,10 @@
 import * as THREE from 'three';
 import './style.css';
-import { wrap, advanceProgress, formatTime } from './race.js';
-import { TRACKS, SURFACES, surfaceAt, collideObstacle } from './tracks.js';
+import { formatTime } from './race.js';
+import { TRACKS, SURFACES } from './tracks.js';
 import { createWorld } from './world.js';
+import { coursePreview } from './course.js';
+import { aiControls,driveCar,collideCars } from './physics.js';
 
 const $ = (id) => document.getElementById(id);
 const viewport = $('viewport');
@@ -32,7 +34,6 @@ function box(w,h,d,material,x=0,y=0,z=0,parent=scene) {
 let track=TRACKS[0],world=createWorld(scene,track);
 const startT=.035;
 const at=(t,lane=0)=>world.at(t,lane);
-const nearest=(x,z)=>world.nearest(x,z);
 const random=Math.random;
 
 const colors=['#e9b85d','#82ada3','#d46f60','#a0a7d5'];
@@ -60,7 +61,7 @@ const cars=colors.map((color,i)=>({ ...carModel(color,i),i,x:0,z:0,vx:0,vz:0,ang
 const marker=new THREE.Mesh(new THREE.ConeGeometry(.65,1.1,3),new THREE.MeshBasicMaterial({color:'#ffe1a0'}));marker.rotation.z=Math.PI;scene.add(marker);
 const dustGeometry=new THREE.IcosahedronGeometry(.24,0);const dust=Array.from({length:100},()=>{const m=new THREE.Mesh(dustGeometry,new THREE.MeshBasicMaterial({color:'#cfb78b',transparent:true,opacity:0,depthWrite:false}));scene.add(m);return {m,life:0};});let dustIndex=0;
 let state='ready',raceTime=0,countdown=0,selected=0,keys=new Set(),last=0,accumulator=0,best=null;
-function loadBest(){best=null;try{best=Number(localStorage.getItem(`quattro-best-${track.id}`))||null;}catch{}}
+function loadBest(){best=null;try{best=Number(localStorage.getItem(`quattro-best-${track.id}-v${track.revision}`))||null;}catch{}}
 loadBest();
 let audioContext,oscillator,gain,sound=false;
 function enableAudio(){if(!audioContext){audioContext=new AudioContext();oscillator=audioContext.createOscillator();oscillator.type='sawtooth';gain=audioContext.createGain();gain.gain.value=0;const filter=audioContext.createBiquadFilter();filter.frequency.value=450;oscillator.connect(filter);filter.connect(gain);gain.connect(audioContext.destination);oscillator.start();}audioContext.resume();}
@@ -73,7 +74,7 @@ function trackInfo(){
  document.querySelector('.race-info>span').textContent=`0${TRACKS.indexOf(track)+1} — ${track.name.toUpperCase()}`;
  document.querySelector('.race-info>p').textContent=`4 DRIVERS / 3 LAPS / ${track.biome}`;
  document.querySelector('.difficulty').textContent=`${'● '.repeat(track.difficulty)}${'○ '.repeat(4-track.difficulty)} ${track.rating}`;
- document.querySelector('.track-label').innerHTML=`${track.name.toUpperCase()}<span>${track.biome} · ${track.rating}</span>`;
+ document.querySelector('.track-label').innerHTML=`${track.name.toUpperCase()}<span>${track.layout} · ${track.rating}</span>`;
  document.querySelector('.tip').innerHTML=`${track.rating} · ${track.biome}<span>${track.tip}</span>`;
  $('track-description').textContent=track.tip;
  document.querySelectorAll('.track-card').forEach(b=>{b.classList.toggle('active',b.dataset.track===track.id);b.setAttribute('aria-pressed',String(b.dataset.track===track.id));});
@@ -89,7 +90,7 @@ function selectTrack(id){
  $('colors').style.display='flex';$('start').innerHTML='LET’S RACE <span>↗</span>';$('status').textContent='READY WHEN YOU ARE';
  document.querySelectorAll('.track-card').forEach(b=>b.disabled=false);trackInfo();
 }
-$('tracks').innerHTML=TRACKS.map((t,i)=>`<button class="track-card" data-track="${t.id}" aria-label="${t.name}, ${t.biome}, difficulty ${t.difficulty} of 4, ${t.rating}" aria-pressed="${i===0}" style="--biome:${t.road}"><span class="track-number">0${i+1} / ${t.biome}</span><strong>${t.name}</strong><span class="track-rating">${'●'.repeat(t.difficulty)}${'○'.repeat(4-t.difficulty)} <b>${t.rating}</b></span></button>`).join('');
+$('tracks').innerHTML=TRACKS.map((t,i)=>`<button class="track-card" data-track="${t.id}" aria-label="${t.name}, ${t.layout}, ${t.biome}, difficulty ${t.difficulty} of 4, ${t.rating}" aria-pressed="${i===0}" style="--biome:${t.road}"><span class="track-number">0${i+1} / ${t.biome}</span>${coursePreview(t)}<strong>${t.name}</strong><span class="layout-name">${t.layout}</span><span class="track-rating">${'●'.repeat(t.difficulty)}${'○'.repeat(4-t.difficulty)} <b>${t.rating}</b></span></button>`).join('');
 for(const b of document.querySelectorAll('.track-card'))b.onclick=()=>selectTrack(b.dataset.track);
 $('change-track').onclick=()=>{selectTrack(track.id);$('tracks').scrollIntoView({block:'nearest',behavior:'smooth'});};
 trackInfo();
@@ -104,37 +105,29 @@ function step(dt){
  if(state!=='racing')return;
  raceTime+=dt;
  for(const c of cars){
-  const near=nearest(c.x,c.z);c.surface=surfaceAt(c.x,c.z,c.air,world.patches);const surface=SURFACES[c.surface];let throttle=0,steer=0,brake=false,boost=false;
-  const speed=Math.hypot(c.vx,c.vz),forward=c.vx*Math.sin(c.angle)+c.vz*Math.cos(c.angle);
-  if(c.i===0){throttle=keys.has('ArrowUp')||keys.has('KeyW')?1:0;brake=keys.has('ArrowDown')||keys.has('KeyS');steer=(keys.has('ArrowLeft')||keys.has('KeyA')?1:0)-(keys.has('ArrowRight')||keys.has('KeyD')?1:0);boost=keys.has('Space')&&throttle&&c.nitro>0;}
-  else{let lane=(c.i-2)*1.2;
-   for(const o of track.obstacles){const ahead=(o.t-near.t+1)%1;if(ahead<.065)lane=o.lane>0?-1.5:1.5;}
-   const target=at(near.t+.028+speed*.0006,lane);const error=wrap(Math.atan2(target.x-c.x,target.z-c.z)-c.angle);steer=THREE.MathUtils.clamp(error*2.2,-1,1);throttle=speed>(track.aiSpeed+c.i*.6)*(1-Math.min(Math.abs(error)*.23,.45))?0:1;boost=Math.abs(error)<.16&&c.nitro>25&&speed>13;}
-  if(c.finished){throttle=.3;boost=false;}
-  c.angle+=steer*2.15*Math.min(speed/5,1)*(forward<-.5?-1:1)*(c.air>.1?.25:1)*dt;
-  if(brake)throttle=forward>1?-1.8:-.5;
-  let acceleration=(throttle*12+(boost?17:0))*(c.air>.4?1:surface.power);
-  if(boost)c.nitro=Math.max(0,c.nitro-30*dt);else c.nitro=Math.min(100,c.nitro+5*dt);
-  const fx=Math.sin(c.angle),fz=Math.cos(c.angle),side=c.vx*fz-c.vz*fx;
-  const grip=c.air>.1?.15:surface.grip;const drag=c.air>.4?.3:surface.drag;
-  c.vx+=(fx*acceleration-c.vx*drag-side*fz*grip)*dt;c.vz+=(fz*acceleration-c.vz*drag+side*fx*grip)*dt;
-  if(near.distance>track.width/2){c.vx*=Math.exp(-1.8*dt);c.vz*=Math.exp(-1.8*dt);}
-  c.x+=c.vx*dt;c.z+=c.vz*dt;
-  const edge=track.width/2+.9;
-  if(near.distance>edge){const nx=(c.x-near.point.x)/near.distance,nz=(c.z-near.point.z)/near.distance;c.x=near.point.x+nx*edge;c.z=near.point.z+nz*edge;const outward=c.vx*nx+c.vz*nz;if(outward>0){c.vx-=nx*outward*1.4;c.vz-=nz*outward*1.4;}}
-  c.jumpCooldown=Math.max(0,c.jumpCooldown-dt);
-  if(c.air<=0&&c.jumpCooldown===0&&speed>9&&track.jumps.some(t=>Math.abs(near.t-t)<.009)){c.vy=4+speed*.12;c.jumpCooldown=1.3;}
-  c.vy-=16*dt;c.air=Math.max(0,c.air+c.vy*dt);if(c.air===0)c.vy=Math.max(0,c.vy);
-  for(const o of world.obstacles)collideObstacle(c,o);
-  const next=nearest(c.x,c.z).t;c.progress=advanceProgress(c.t,next,c.progress);c.t=next;
+  let controls;
+  if(c.i===0){
+    const throttle=keys.has('ArrowUp')||keys.has('KeyW')?1:0;
+    controls={throttle,brake:keys.has('ArrowDown')||keys.has('KeyS'),steer:(keys.has('ArrowLeft')||keys.has('KeyA')?1:0)-(keys.has('ArrowRight')||keys.has('KeyD')?1:0),boost:keys.has('Space')&&throttle>0};
+  }else controls=aiControls(c,world,track);
+  const {speed,fx,fz,surface}=driveCar(c,world,track,dt,controls);
   if(c.progress>=3&&!c.finished){c.finished=true;c.finishTime=raceTime;if(c.i===0){finish();break;}}
   if(speed>4&&c.air<.4&&random()<.65){const p=dust[dustIndex++%dust.length];p.life=.65;p.m.material.color.set(surface.color);p.m.position.set(c.x-fx*1.5,.3,c.z-fz*1.5);p.m.scale.setScalar(1);}
  }
- for(let i=0;i<cars.length;i++)for(let j=i+1;j<cars.length;j++){const a=cars[i],b=cars[j];if(Math.abs(a.air-b.air)>1)continue;const dx=b.x-a.x,dz=b.z-a.z,d=Math.hypot(dx,dz);if(d>0&&d<2){const nx=dx/d,nz=dz/d,push=(2-d)*.5;a.x-=nx*push;a.z-=nz*push;b.x+=nx*push;b.z+=nz*push;const v=(a.vx-b.vx)*nx+(a.vz-b.vz)*nz;if(v>0){a.vx-=nx*v*.65;a.vz-=nz*v*.65;b.vx+=nx*v*.65;b.vz+=nz*v*.65;}}}
+ collideCars(cars);
  for(const p of dust){p.life=Math.max(0,p.life-dt);p.m.material.opacity=p.life*.5;p.m.position.y+=dt*.7;p.m.scale.addScalar(dt*2);}
 }
 function position(){return 1+cars.filter(c=>c.i!==0&&(c.finished&&(!cars[0].finished||c.finishTime<cars[0].finishTime)||!c.finished&&c.progress>cars[0].progress)).length;}
-function finish(){state='finished';const rank=position();if(best===null||raceTime<best){best=raceTime;try{localStorage.setItem(`quattro-best-${track.id}`,String(best));}catch{}}$('overlay').classList.remove('hidden');$('overlay').querySelector('.eyebrow').textContent=`${track.name.toUpperCase()} · RACE COMPLETE`;$('overlay').querySelector('h2').innerHTML=rank===1?'DUST.<br>SETTLED.':`P${rank}.<br>FULL SEND.`;$('overlay').querySelector('p:not(.eyebrow)').innerHTML=`Finished ${rank} of 4 · ${formatTime(raceTime)}<br>Personal best ${formatTime(best)}`;$('colors').style.display='none';$('start').innerHTML='RACE AGAIN <span>↗</span>';$('status').textContent='CHEQUERED FLAG';document.querySelectorAll('.track-card').forEach(b=>b.disabled=false);}
+function finish(){
+ state='finished';const rank=position();
+ if(best===null||raceTime<best){best=raceTime;try{localStorage.setItem(`quattro-best-${track.id}-v${track.revision}`,String(best));}catch{}}
+ $('overlay').classList.remove('hidden');
+ $('overlay').querySelector('.eyebrow').textContent=`${track.name.toUpperCase()} · RACE COMPLETE`;
+ $('overlay').querySelector('h2').innerHTML=rank===1?'DUST.<br>SETTLED.':`P${rank}.<br>FULL SEND.`;
+ $('overlay').querySelector('p:not(.eyebrow)').innerHTML=`Finished ${rank} of 4 · ${formatTime(raceTime)}<br>Personal best ${formatTime(best)}`;
+ $('colors').style.display='none';$('start').innerHTML='RACE AGAIN <span>↗</span>';$('status').textContent='CHEQUERED FLAG';
+ document.querySelectorAll('.track-card').forEach(b=>b.disabled=false);
+}
 function syncModels(){for(const c of cars){c.g.position.set(c.x,c.air,c.z);c.g.rotation.y=c.angle;c.g.rotation.x=-c.vy*.018;c.g.rotation.z=Math.sin(raceTime*28+c.i)*Math.min(Math.hypot(c.vx,c.vz)*.0015,.035);}marker.position.set(cars[0].x,cars[0].air+3.3,cars[0].z);}
 function updateHUD(){if(state==='racing')$('race-message').textContent=cars[0].surface&&cars[0].surface!=='gravel'?SURFACES[cars[0].surface].label:'';$('position').innerHTML=`0${position()}<span>/ 04</span>`;$('lap').innerHTML=`0${Math.min(3,Math.floor(Math.max(0,cars[0].progress))+1)}<span>/ 03</span>`;$('time').textContent=formatTime(raceTime);$('speed').textContent=Math.round(Math.hypot(cars[0].vx,cars[0].vz)*5);$('nitro-fill').style.width=`${cars[0].nitro}%`;}
 function resize(){const w=viewport.clientWidth,h=viewport.clientHeight,aspect=w/h;const halfW=Math.max(53,33*aspect),halfH=halfW/aspect;Object.assign(camera,{left:-halfW,right:halfW,top:halfH,bottom:-halfH});camera.updateProjectionMatrix();renderer.setSize(w,h);}

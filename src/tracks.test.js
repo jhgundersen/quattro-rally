@@ -1,7 +1,7 @@
 import {test} from 'node:test';
 import assert from 'node:assert/strict';
 import {TRACKS,SURFACES,surfaceAt,collideObstacle} from './tracks.js';
-import * as THREE from 'three';
+import {createCourse} from './course.js';
 
 test('surface detection follows a rotated patch and ignores cars jumping over it',()=>{
  const patch={x:10,z:20,dx:1,dz:0,length:8,width:4,type:'water'};
@@ -33,9 +33,14 @@ test('every track has distinct geometry and increasing difficulty, with passable
  TRACKS.forEach((t,i)=>{assert.equal(t.difficulty,i+1);if(i){assert.ok(t.width<TRACKS[i-1].width);assert.ok(t.aiSpeed>TRACKS[i-1].aiSpeed);}
   for(const o of t.obstacles)assert.ok(t.width/2+Math.abs(o.lane)-o.radius>3,'obstacles leave a drivable lane');
   for(const p of t.patches)assert.ok(SURFACES[p.type]);
-  const curve=new THREE.CatmullRomCurve3(t.points.map(([x,z])=>new THREE.Vector3(x,0,z)),true,'catmullrom',.35);
+  const {curve,length}=createCourse(t);
+  // Inner road edges and barrier offsets must never fold across a hairpin.
+  for(let j=0;j<1200;j++){
+    const a=curve.getTangentAt(j/1200),b=curve.getTangentAt((j/1200+.1/length)%1);
+    assert.ok(.1/a.angleTo(b)>t.width/2+.85,`${t.id}: hairpin radius too small for barriers`);
+  }
   // Distant course sections must not overlap and allow ambiguous lap tracking.
   const samples=Array.from({length:160},(_,j)=>curve.getPointAt(j/160));
-  for(let a=0;a<160;a++)for(let b=a+1;b<160;b++){const separation=Math.min(b-a,160-(b-a));if(separation>18)assert.ok(samples[a].distanceTo(samples[b])>t.width,`${t.id}: overlapping course sections`);}
+  for(let a=0;a<160;a++)for(let b=a+1;b<160;b++){const separation=Math.min(b-a,160-(b-a))*length/160;if(separation>t.width*2)assert.ok(samples[a].distanceTo(samples[b])>t.width+1.7,`${t.id}: overlapping course sections`);}
  });
 });
