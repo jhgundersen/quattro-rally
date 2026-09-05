@@ -9,6 +9,7 @@ import { aiControls,driveCar,collideCars } from './physics.js';
 import { DRIVERS, GRID, PLAYER, portrait } from './drivers.js';
 import { createSoundtrack } from './soundtrack.js';
 import { createTrail } from './trail.js';
+import { createDust, dustDensity } from './dust.js';
 import { MESSAGES, pick, resultTitle } from './messages.js';
 
 const $ = (id) => document.getElementById(id);
@@ -71,7 +72,7 @@ function carModel(color,index){
 const cars=colors.map((color,i)=>({ ...carModel(color,i),i,x:0,z:0,vx:0,vz:0,angle:0,t:0,progress:0,nitro:100,air:0,vy:0,jumpCooldown:0,finished:false,finishTime:0}));
 const marker=new THREE.Mesh(new THREE.ConeGeometry(.65,1.1,3),new THREE.MeshBasicMaterial({color:'#ffe1a0'}));marker.rotation.z=Math.PI;scene.add(marker);
 const trails=cars.map(()=>createTrail(scene));
-const dustGeometry=new THREE.IcosahedronGeometry(.24,0);const dust=Array.from({length:100},()=>{const m=new THREE.Mesh(dustGeometry,new THREE.MeshBasicMaterial({color:'#cfb78b',transparent:true,opacity:0,depthWrite:false}));scene.add(m);return {m,life:0};});let dustIndex=0;
+const dust=createDust(scene,{count:760});
 let state='ready',raceTime=0,countdown=0,keys=new Set(),last=0,accumulator=0,best=null;
 function loadBest(){best=null;try{best=Number(localStorage.getItem(`quattro-best-${track.id}-v${track.revision}`))||null;}catch{}}
 loadBest();
@@ -81,7 +82,7 @@ function syncAudio(){const active=sound&&!document.hidden&&document.hasFocus();s
 function enableAudio(){if(!audioContext){audioContext=new AudioContext();oscillator=audioContext.createOscillator();oscillator.type='sawtooth';gain=audioContext.createGain();gain.gain.value=0;const filter=audioContext.createBiquadFilter();filter.frequency.value=450;oscillator.connect(filter);filter.connect(gain);gain.connect(audioContext.destination);oscillator.start();}audioContext.resume().catch(()=>{});}
 $('sound').onclick=()=>{sound=!sound;if(sound)enableAudio();$('sound').textContent=sound?'SOUND ON ↗':'SOUND OFF ↗';$('sound').setAttribute('aria-label',sound?'Mute sound':'Enable sound');$('sound').setAttribute('aria-pressed',String(sound));syncAudio();};
 function reset(){$('results').classList.add('hidden');$('results').classList.remove('is-triumph');quipDriver=-1;$('race-message').textContent='';raceTime=0;keys.clear();cars.forEach((c,i)=>{// Half a car length of stagger inside each row, so the standings read P1..P4.
- const slot=gridSlot(i),t=startT-.022-Math.floor(slot/2)*.026-(slot%2)*.003,p=at(t,slot%2?2:-2),d=world.curve.getTangentAt((t+1)%1);Object.assign(c,{x:p.x,z:p.z,vx:0,vz:0,angle:Math.atan2(d.x,d.z),t:(t+1)%1,progress:t-startT,nitro:100,air:0,vy:0,jumpCooldown:0,finished:false,finishTime:0,surface:track.surface||'gravel'});});dust.forEach(p=>{p.life=0;p.m.material.opacity=0;});trails.forEach(t=>t.clear());$('race-message').textContent='';syncModels();updateHUD();}
+ const slot=gridSlot(i),t=startT-.022-Math.floor(slot/2)*.026-(slot%2)*.003,p=at(t,slot%2?2:-2),d=world.curve.getTangentAt((t+1)%1);Object.assign(c,{x:p.x,z:p.z,vx:0,vz:0,angle:Math.atan2(d.x,d.z),t:(t+1)%1,progress:t-startT,nitro:100,air:0,vy:0,jumpCooldown:0,finished:false,finishTime:0,surface:track.surface||'gravel'});});dust.clear();trails.forEach(t=>t.clear());$('race-message').textContent='';syncModels();updateHUD();}
 function start(){if(sound)enableAudio();soundtrack.beginRace();reset();document.querySelectorAll('.track-card').forEach(b=>b.disabled=true);state='countdown';countdown=3.4;$('overlay').classList.add('hidden');$('status').textContent=pick(MESSAGES.lights);$('pause').textContent='Ⅱ';syncAudio();}
 function togglePause(){if(state==='racing'||state==='countdown'||state==='finishing'){state=state==='racing'?'paused':state==='finishing'?'paused-finishing':'paused-countdown';$('countdown').textContent='PAUSED';$('pause').textContent='▶';}else if(state.startsWith('paused')){state=state==='paused'?'racing':state==='paused-finishing'?'finishing':'countdown';$('countdown').textContent='';$('pause').textContent='Ⅱ';if(sound)enableAudio();}syncAudio();soundtrack.retry();}
 $('start').onclick=start;$('restart').onclick=start;$('pause').onclick=togglePause;
@@ -130,6 +131,32 @@ addEventListener('blur',()=>{keys.clear();if(state==='racing'||state==='countdow
 addEventListener('focus',syncAudio);
 document.addEventListener('visibilitychange',()=>{if(document.hidden){keys.clear();if(state==='racing'||state==='countdown'||state==='finishing')togglePause();}syncAudio();});
 for(const b of document.querySelectorAll('#touch button')){b.onpointerdown=e=>{e.preventDefault();b.setPointerCapture(e.pointerId);keys.add(b.dataset.key);};for(const type of ['pointerup','pointercancel','lostpointercapture'])b.addEventListener(type,()=>keys.delete(b.dataset.key));}
+// Loose surfaces throw up a rolling cloud behind the wheels, thick enough on
+// the dirt courses that a pack of cars can smear the track behind them. Sliding,
+// boosting and landing all cost extra dust.
+const dustDebt=cars.map(()=>0);
+function kickUpDust(c,dt,speed,slip,fx,fz,surface,boosting){
+ const density=dustDensity(c.surface);
+ // Airborne cars kick up nothing until they land, and then all at once.
+ if(c.air>.25){c.landing=density>=.05;return;}
+ if(c.landing){c.landing=false;
+  for(let i=0;i<11*density;i++)dust.spawn(c.x-fx*1.1+(random()-.5)*2.4,.4+random()*.6,c.z-fz*1.1+(random()-.5)*2.4,surface.color,
+   {radius:4.5+random()*3,opacity:.3*density,seconds:2.2+random(),vx:(random()-.5)*4.5,vy:1.6+random(),vz:(random()-.5)*4.5,growth:6});
+ }
+ if(speed<3||density<.05)return;
+ dustDebt[c.i]+=dt*density*(9+speed*.85+slip*2+(boosting?12:0));
+ while(dustDebt[c.i]>=1){
+  dustDebt[c.i]-=1;
+  const wide=random()<.3;
+  dust.spawn(c.x-fx*(1.5+random()),.3+random()*.7,c.z-fz*(1.5+random()),surface.color,{
+   radius:wide?3.4+random()*2.6:1.5+random()*1.3,
+   opacity:(wide?.26:.34)*density,
+   seconds:wide?1.9+random()*1.2:.9+random()*.6,
+   vx:-fx*speed*.14+(random()-.5)*2.4, vy:.8+random()*1.2, vz:-fz*speed*.14+(random()-.5)*2.4,
+   growth:wide?5.5:3.2,
+  });
+ }
+}
 function step(dt){
  if(state==='countdown'){countdown-=dt;$('countdown').textContent=countdown>.4?Math.ceil(countdown-.4):'GO!';if(countdown<=0){state='racing';$('countdown').textContent='';$('status').textContent=pick(MESSAGES.racing);}return;}
  if(state!=='racing'&&state!=='finishing')return;
@@ -142,10 +169,10 @@ function step(dt){
   }else controls=aiControls(c,world,track,cars);
   const {speed,fx,fz,surface}=driveCar(c,world,track,dt,controls);
   if(c.progress>=3&&!c.finished){c.finished=true;c.finishTime=raceTime;if(c.i===PLAYER)finish();}
-  if(speed>4&&c.air<.4&&random()<.65){const p=dust[dustIndex++%dust.length];p.life=.65;p.m.material.color.set(surface.color);p.m.position.set(c.x-fx*1.5,.3,c.z-fz*1.5);p.m.scale.setScalar(1);}
+  const slip=Math.abs(c.vx*fz-c.vz*fx);
   // A sliding or boosting car scrubs a heavier mark than one just rolling.
-  if(speed>2.5&&c.air<.2){const slip=Math.abs(c.vx*fz-c.vz*fx);
-   trails[c.i].sample(c.x-fx*1.2,c.z-fz*1.2,c.angle,c.surface,Math.min(.85,.3+slip*.06+(controls.boost&&c.nitro>0?.15:0)));}
+  if(speed>2.5&&c.air<.2)trails[c.i].sample(c.x-fx*1.2,c.z-fz*1.2,c.angle,c.surface,Math.min(.85,.3+slip*.06+(controls.boost&&c.nitro>0?.15:0)));
+  kickUpDust(c,dt,speed,slip,fx,fz,surface,controls.boost&&c.nitro>0);
  }
  collideCars(cars);
  if(state==='finishing'){
@@ -153,7 +180,7 @@ function step(dt){
   renderResults();
  }
  for(const t of trails)t.fade(dt);
- for(const p of dust){p.life=Math.max(0,p.life-dt);p.m.material.opacity=p.life*.5;p.m.position.y+=dt*.7;p.m.scale.addScalar(dt*2);}
+ dust.update(dt);
 }
 function position(){return raceStandings(cars).findIndex(c=>c.i===0)+1;}
 let resultOrder='',resultRows='',lastResultUpdate=-1,podiumLines=[],graceLine='',quipLine='',quipDriver=-1,beatAce=false;
@@ -209,8 +236,9 @@ function resize(){
  const halfW=Math.max((bounds.max.x-bounds.min.x)/2+3,((bounds.max.y-bounds.min.y)/2+3)*aspect),halfH=halfW/aspect;
  Object.assign(camera,{left:cx-halfW,right:cx+halfW,top:cy+halfH,bottom:cy-halfH});
  camera.updateProjectionMatrix();renderer.setSize(w,h);
+ dust.setScale(renderer.domElement.height/(camera.top-camera.bottom));
 }
 new ResizeObserver(resize).observe(viewport);resize();reset();
 renderer.setAnimationLoop(now=>{const dt=last?Math.min((now-last)/1000,.1):0;last=now;accumulator+=dt;while(accumulator>=1/60){step(1/60);accumulator-=1/60;}syncModels();updateHUD();syncAudio();if(gain){oscillator.frequency.setTargetAtTime(45+Math.hypot(cars[0].vx,cars[0].vz)*8,audioContext.currentTime,.08);}renderer.render(scene,camera);});
 // Read-only telemetry for smoke tests and debugging.
-window.quattro={get track(){return track.id;},get state(){return state;},get raceTime(){return raceTime;},get cars(){return cars.map(c=>({driver:DRIVERS[driverIndex(c)].name,x:c.x,z:c.z,angle:c.angle,progress:c.progress,nitro:c.nitro,air:c.air,finished:c.finished,finishTime:c.finishTime,surface:c.surface}));},get drawCalls(){return renderer.info.render.calls;}};
+window.quattro={get track(){return track.id;},get state(){return state;},get raceTime(){return raceTime;},get cars(){return cars.map(c=>({driver:DRIVERS[driverIndex(c)].name,x:c.x,z:c.z,angle:c.angle,progress:c.progress,nitro:c.nitro,air:c.air,finished:c.finished,finishTime:c.finishTime,surface:c.surface}));},get drawCalls(){return renderer.info.render.calls;},get dust(){return dust.live;},get marks(){return trails.map(t=>t.length);}};
