@@ -5,7 +5,7 @@ Distilled on 2026-09-05. This records project context and verified session outco
 ## Purpose and user preferences
 
 - Build a Three.js arcade racer inspired by Ivan “Ironman” Stewart’s **Super Off Road**, with four differently colored Audi Sport Quattro-inspired rally cars as a salute to **Omarchy Quattro**.
-- Use original procedural models and scenery. The liveries are amber, sage, coral, and lavender.
+- Use original procedural models and scenery. The liveries are amber, sage, coral, and Omarchy green.
 - The user wants compact, recognizably different arcade arena layouts: folded infields, hairpins, parallel straights, jumps, and obstacles. Earlier courses looked too much like variations of one wavy oval; changing scenery alone does not satisfy this requirement.
 - Preserve the **fixed isometric view** and visibility of the whole course. The user specifically corrected the earlier steep overhead view.
 
@@ -63,6 +63,7 @@ Races have one player, three AI opponents, and three laps. Controls: WASD/arrows
 - `src/race.test.js` covers forward/reverse lap crossing, reverse-lap farming prevention, angle wrapping, and timing.
 - `src/tracks.test.js` covers surfaces, obstacle collisions and clearance, difficulty, and course geometry.
 - `src/physics.test.js` runs four drivers for three laps on every course using production physics, with completion within 180 simulated seconds, finite coordinates, progress continuity, and working jumps.
+- `src/physics.test.js` also time-trials the ace against a standard rival on every course. The gravel pit is the tuning yardstick: the user laps it in about 35 seconds, so DHH is held to 28-34.5 seconds there — clearly quicker, still catchable on a clean run. Solo pace is roughly 32s gravel, 53s forest, 49s desert, 38s alpine, 50s garage; the standard AI runs 52/77/66/58/66.
 - For course or camera changes, also visually inspect all courses in Chromium. Check full-course framing, distinct silhouettes, readable lanes/barriers, scenery clearance, and narrow-screen HUD layout.
 - Previous narrow-screen HUD overlap was fixed; preserve room for timer and nitro.
 - The latest isometric-camera change passed tests/build and deployed successfully. Gravel and alpine framing were visually checked in Chromium. Simulation tests are not evidence of a complete human-driven browser race.
@@ -82,7 +83,10 @@ Races have one player, three AI opponents, and three laps. Controls: WASD/arrows
 
 ## Garage, drivers and podium update
 
-- Drivers are Axel (amber), Moss (sage), Roxy (coral), and Lumi (lavender). Selection rotates the driver identities, car liveries and number decals together; the player remains car index 0.
+- Drivers are Axel (amber, the player), Ryan (sage), Bjarne (coral), and DHH (Omarchy green `#9ece6a` over Tokyo-night ink `#1a1b26`, sampled from the Omarchy wordmark). Ryan and Bjarne are drawn from the photos the user supplied: glasses and a goatee, and a shaved head with grey stubble and one raised eyebrow.
+- There is no driver picker. The player is always `PLAYER` (car index 0, amber) and `GRID` orders the start by `skill`, so DHH leads away and the player is last with work to do. `#lineup` on the start overlay just shows that order. Portraits carry no number badge.
+- `skill` drives everything about rival pace: DHH 2.2 (`ace: true`), Ryan 1.55, Bjarne 1.4. It scales corner speed, target pace, nitro economy (regen by `skill²`, burn by `1/skill`), boost gating, lookahead and a racing line that reaches for the inside of the next bend. Cars without a `skill` keep the old behaviour exactly, so the standard-AI tests still describe them.
+- Three changes did most of the work and are easy to undo by accident: corner speed above skill 1 is capped at `2.4/curvature` (the steering rack yaw-rates out at 2.15 rad/s, and a little slide past that is all they can carry) which made him faster *and* stopped him running wide; skilled drivers look `1.4×` further ahead, worth ~2s a race on the tight courses; and while passing they look `2.2×` ahead so the move is a drift across the road instead of a jink that scrubs speed and cuts the nitro. Before that last one the ace lost ~6s a race to traffic and finished behind Ryan.
 - Portraits sit in a strip above the course to avoid hiding the road.
 - After the player finishes, `finishing` continues rival physics for up to 25 seconds. The podium updates as rivals finish, then `finished` freezes results; unfinished cars display DNF. `paused-finishing` preserves this phase on blur/pause. The HUD freezes the player's completion time.
 - Results use finish time for finishers and progress for unfinished cars. Replay and next-stage actions reset the results screen. CSS animations respect reduced motion.

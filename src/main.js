@@ -6,7 +6,7 @@ import { createWorld } from './world.js';
 import { coursePreview } from './course.js';
 import { aiControls,driveCar,collideCars } from './physics.js';
 
-import { DRIVERS, portrait } from './drivers.js';
+import { DRIVERS, GRID, PLAYER, portrait } from './drivers.js';
 import { createSoundtrack } from './soundtrack.js';
 
 const $ = (id) => document.getElementById(id);
@@ -41,31 +41,35 @@ const at=(t,lane=0)=>world.at(t,lane);
 const random=Math.random;
 
 const colors=DRIVERS.map(d=>d.color);
-const driverIndex=c=>(c.i+selected)%4;
+const TRIM='#252c25';
+// One car per driver, and the player is always the amber one.
+const driverIndex=c=>c.i;
+const gridSlot=i=>GRID.indexOf(i);
+// Trim is per car, not shared, so a driver can bring their own two-tone livery.
 function carModel(color,index){
- const g=new THREE.Group(),paint=mat(color),glass=mat('#334747');
+ const g=new THREE.Group(),paint=mat(color),glass=mat('#334747'),trim=mat(TRIM);
  box(1.85,.55,3.55,paint,0,.67,0,g);box(1.98,.3,1.1,paint,0,.66,-1.15,g);box(1.98,.3,1.1,paint,0,.66,1.1,g);
  const cabin=box(1.53,.63,1.65,glass,0,1.23,-.23,g);cabin.rotation.x=-.06;
  box(1.58,.12,1.2,paint,0,1.58,-.36,g);
  box(.2,.67,1.67,paint,-.68,1.22,-.2,g);box(.2,.67,1.67,paint,.68,1.22,-.2,g);
- box(1.92,.25,.2,dark,0,.53,1.79,g);box(1.94,.24,.16,dark,0,.52,-1.79,g);
- box(1.4,.19,.06,dark,0,.84,1.79,g);
+ box(1.92,.25,.2,trim,0,.53,1.79,g);box(1.94,.24,.16,trim,0,.52,-1.79,g);
+ box(1.4,.19,.06,trim,0,.84,1.79,g);
  for(const x of [-.69,-.32,.32,.69])box(.26,.2,.07,white,x,.86,1.83,g);
  for(const x of [-.66,.66])box(.35,.16,.06,mat('#b23d30'),x,.83,-1.82,g);
- box(2.1,.14,.48,paint,0,1.28,-1.57,g);for(const x of [-.7,.7])box(.1,.4,.1,dark,x,1.03,-1.57,g);
+ box(2.1,.14,.48,paint,0,1.28,-1.57,g);for(const x of [-.7,.7])box(.1,.4,.1,trim,x,1.03,-1.57,g);
  box(.34,.02,1.15,white,.3,.965,.99,g);box(.14,.02,1.15,mat('#bd5841'),.57,.97,.99,g);
  for(const x of [-1,1])for(const z of [-1.15,1.12]){
- const wheel=new THREE.Mesh(new THREE.CylinderGeometry(.44,.44,.33,12),dark);wheel.rotation.z=Math.PI/2;wheel.position.set(x,.46,z);wheel.castShadow=true;g.add(wheel);
+ const wheel=new THREE.Mesh(new THREE.CylinderGeometry(.44,.44,.33,12),trim);wheel.rotation.z=Math.PI/2;wheel.position.set(x,.46,z);wheel.castShadow=true;g.add(wheel);
  const hub=new THREE.Mesh(new THREE.CylinderGeometry(.24,.24,.35,8),white);hub.rotation.z=Math.PI/2;hub.position.copy(wheel.position);g.add(hub);
  }
  const number=document.createElement('canvas');number.width=64;number.height=64;const ctx=number.getContext('2d');ctx.fillStyle='#ece8d5';ctx.fillRect(0,0,64,64);ctx.fillStyle='#26382a';ctx.font='bold 47px monospace';ctx.textAlign='center';ctx.fillText(String(index+1).padStart(2,'0'),32,49);
  const decal=new THREE.Mesh(new THREE.PlaneGeometry(.85,.85),new THREE.MeshBasicMaterial({map:new THREE.CanvasTexture(number)}));decal.rotation.x=-Math.PI/2;decal.position.set(0,1.65,-.3);g.add(decal);
- scene.add(g);return {g,paint,decal,numberCanvas:number};
+ scene.add(g);return {g,paint,trim,decal,numberCanvas:number};
 }
 const cars=colors.map((color,i)=>({ ...carModel(color,i),i,x:0,z:0,vx:0,vz:0,angle:0,t:0,progress:0,nitro:100,air:0,vy:0,jumpCooldown:0,finished:false,finishTime:0}));
 const marker=new THREE.Mesh(new THREE.ConeGeometry(.65,1.1,3),new THREE.MeshBasicMaterial({color:'#ffe1a0'}));marker.rotation.z=Math.PI;scene.add(marker);
 const dustGeometry=new THREE.IcosahedronGeometry(.24,0);const dust=Array.from({length:100},()=>{const m=new THREE.Mesh(dustGeometry,new THREE.MeshBasicMaterial({color:'#cfb78b',transparent:true,opacity:0,depthWrite:false}));scene.add(m);return {m,life:0};});let dustIndex=0;
-let state='ready',raceTime=0,countdown=0,selected=0,keys=new Set(),last=0,accumulator=0,best=null;
+let state='ready',raceTime=0,countdown=0,keys=new Set(),last=0,accumulator=0,best=null;
 function loadBest(){best=null;try{best=Number(localStorage.getItem(`quattro-best-${track.id}-v${track.revision}`))||null;}catch{}}
 loadBest();
 let audioContext,oscillator,gain,sound=true;
@@ -73,7 +77,8 @@ const soundtrack=createSoundtrack($('soundtrack'),`${import.meta.env.BASE_URL}au
 function syncAudio(){const active=sound&&!document.hidden&&document.hasFocus();soundtrack.setPlaying(active&&['countdown','racing','finishing','finished'].includes(state));if(gain)gain.gain.setTargetAtTime(active&&state==='racing'?.018:0,audioContext.currentTime,.1);}
 function enableAudio(){if(!audioContext){audioContext=new AudioContext();oscillator=audioContext.createOscillator();oscillator.type='sawtooth';gain=audioContext.createGain();gain.gain.value=0;const filter=audioContext.createBiquadFilter();filter.frequency.value=450;oscillator.connect(filter);filter.connect(gain);gain.connect(audioContext.destination);oscillator.start();}audioContext.resume().catch(()=>{});}
 $('sound').onclick=()=>{sound=!sound;if(sound)enableAudio();$('sound').textContent=sound?'SOUND ON ↗':'SOUND OFF ↗';$('sound').setAttribute('aria-label',sound?'Mute sound':'Enable sound');$('sound').setAttribute('aria-pressed',String(sound));syncAudio();};
-function reset(){$('results').classList.add('hidden');$('race-message').textContent='';raceTime=0;keys.clear();cars.forEach((c,i)=>{const t=startT-.022-Math.floor(i/2)*.026,p=at(t,i%2?2:-2),d=world.curve.getTangentAt((t+1)%1);Object.assign(c,{x:p.x,z:p.z,vx:0,vz:0,angle:Math.atan2(d.x,d.z),t:(t+1)%1,progress:t-startT,nitro:100,air:0,vy:0,jumpCooldown:0,finished:false,finishTime:0,surface:track.surface||'gravel'});});dust.forEach(p=>{p.life=0;p.m.material.opacity=0;});$('race-message').textContent='';syncModels();updateHUD();}
+function reset(){$('results').classList.add('hidden');$('race-message').textContent='';raceTime=0;keys.clear();cars.forEach((c,i)=>{// Half a car length of stagger inside each row, so the standings read P1..P4.
+ const slot=gridSlot(i),t=startT-.022-Math.floor(slot/2)*.026-(slot%2)*.003,p=at(t,slot%2?2:-2),d=world.curve.getTangentAt((t+1)%1);Object.assign(c,{x:p.x,z:p.z,vx:0,vz:0,angle:Math.atan2(d.x,d.z),t:(t+1)%1,progress:t-startT,nitro:100,air:0,vy:0,jumpCooldown:0,finished:false,finishTime:0,surface:track.surface||'gravel'});});dust.forEach(p=>{p.life=0;p.m.material.opacity=0;});$('race-message').textContent='';syncModels();updateHUD();}
 function start(){if(sound)enableAudio();soundtrack.beginRace();reset();document.querySelectorAll('.track-card').forEach(b=>b.disabled=true);state='countdown';countdown=3.4;$('overlay').classList.add('hidden');$('status').textContent='ENGINES READY';$('pause').textContent='Ⅱ';syncAudio();}
 function togglePause(){if(state==='racing'||state==='countdown'||state==='finishing'){state=state==='racing'?'paused':state==='finishing'?'paused-finishing':'paused-countdown';$('countdown').textContent='PAUSED';$('pause').textContent='▶';}else if(state.startsWith('paused')){state=state==='paused'?'racing':state==='paused-finishing'?'finishing':'countdown';$('countdown').textContent='';$('pause').textContent='Ⅱ';if(sound)enableAudio();}syncAudio();soundtrack.retry();}
 $('start').onclick=start;$('restart').onclick=start;$('pause').onclick=togglePause;
@@ -94,7 +99,7 @@ function selectTrack(id){
  $('overlay').querySelector('.eyebrow').textContent=`${track.biome} · ${track.rating} · ${track.difficulty}/4`;
  $('overlay').querySelector('h2').innerHTML=track.name.toUpperCase().replace(/ (?!.* )/,'<br>');
  $('overlay').querySelector('p:not(.eyebrow)').textContent=track.tip;
- $('colors').style.display='flex';$('start').innerHTML='LET’S RACE <span>↗</span>';$('status').textContent='READY WHEN YOU ARE';
+ $('lineup').style.display='flex';$('start').innerHTML='LET’S RACE <span>↗</span>';$('status').textContent='READY WHEN YOU ARE';
  document.querySelectorAll('.track-card').forEach(b=>b.disabled=false);trackInfo();
 }
 $('tracks').innerHTML=TRACKS.map((t,i)=>`<button class="track-card" data-track="${t.id}" aria-label="${t.name}, ${t.layout}, ${t.biome}, difficulty ${t.difficulty} of 4, ${t.rating}" aria-pressed="${i===0}" style="--biome:${t.road}"><span class="track-number">0${i+1} / ${t.biome}</span>${coursePreview(t)}<strong>${t.name}</strong><span class="layout-name">${t.layout}</span><span class="track-rating">${'●'.repeat(t.difficulty)}${'○'.repeat(4-t.difficulty)} <b>${t.rating}</b></span></button>`).join('');
@@ -102,11 +107,17 @@ for(const b of document.querySelectorAll('.track-card'))b.onclick=()=>selectTrac
 $('change-track').onclick=()=>{selectTrack(track.id);$('tracks').scrollIntoView({block:'nearest',behavior:'smooth'});};
 trackInfo();
 function updateDrivers(){
- for(const c of cars){const ctx=c.numberCanvas.getContext('2d');ctx.fillStyle='#ece8d5';ctx.fillRect(0,0,64,64);ctx.fillStyle='#26382a';ctx.fillText(String(driverIndex(c)+1).padStart(2,'0'),32,49);c.decal.material.map.needsUpdate=true;}
- $('driver-strip').innerHTML=cars.map(c=>{const d=DRIVERS[driverIndex(c)];return `<span class="driver-chip" style="--driver:${d.color}">${portrait(driverIndex(c))}<span>${d.name}<small>${c.i===0?'YOU':'RIVAL'}</small></span></span>`;}).join('');
+ for(const c of cars){const d=DRIVERS[driverIndex(c)],ctx=c.numberCanvas.getContext('2d');
+  ctx.fillStyle=d.trim||'#ece8d5';ctx.fillRect(0,0,64,64);ctx.fillStyle=d.trim?d.color:'#26382a';ctx.fillText(String(driverIndex(c)+1).padStart(2,'0'),32,49);c.decal.material.map.needsUpdate=true;
+  c.paint.color.set(d.color);c.trim.color.set(d.trim||TRIM);
+  // The locked ace drives to his own, quicker limits; everyone else shares one.
+  c.skill=d.skill||1;}
+ $('driver-strip').innerHTML=cars.map(c=>{const d=DRIVERS[driverIndex(c)];return `<span class="driver-chip" style="--driver:${d.color}">${portrait(driverIndex(c))}<span>${d.name}<small>${c.i===PLAYER?'YOU':d.ace?'ACE':'RIVAL'}</small></span></span>`;}).join('');
 }
-$('colors').innerHTML=DRIVERS.map((d,i)=>`<button class="driver-choice ${i===selected?'selected':''}" data-color="${i}" aria-label="Choose ${d.name}, ${d.nickname}" aria-pressed="${i===selected}" style="--driver:${d.color}">${portrait(i)}<strong>${d.name}</strong></button>`).join('');
-for(const b of document.querySelectorAll('.driver-choice'))b.onclick=()=>{selected=+b.dataset.color;cars.forEach((c,i)=>c.paint.color.set(colors[(i+selected)%4]));document.querySelectorAll('.driver-choice').forEach(s=>{s.classList.toggle('selected',s===b);s.setAttribute('aria-pressed',String(s===b));});updateDrivers();};
+// Nobody picks a car: the grid is fixed, quickest away first and you last.
+$('lineup').innerHTML=GRID.map((i,slot)=>{const d=DRIVERS[i];
+ return `<div class="grid-slot${i===PLAYER?' is-player':''}" style="--driver:${d.color}"><span class="grid-place">P${slot+1}</span>${portrait(i)}<strong>${d.name}</strong><span class="grid-role">${i===PLAYER?'YOU':d.ace?'ACE':'RIVAL'}</span></div>`;}).join('');
+$('lineup').setAttribute('aria-label',`Starting grid: ${GRID.map((i,slot)=>`P${slot+1} ${DRIVERS[i].name}`).join(', ')}`);
 updateDrivers();
 $('replay').onclick=start;
 $('next-track').onclick=()=>selectTrack(TRACKS[(TRACKS.indexOf(track)+1)%TRACKS.length].id);
