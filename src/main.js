@@ -11,7 +11,8 @@ const viewport = $('viewport');
 const scene = new THREE.Scene();
 scene.background = new THREE.Color('#74795c');
 const camera = new THREE.OrthographicCamera(-54, 54, 32, -32, 0.1, 300);
-camera.position.set(0, 92, 69); camera.lookAt(0, 0, 0);
+// Equal-axis orthographic view: 45° around the arena, 35.3° above the ground.
+camera.position.set(90, 90, 90); camera.lookAt(0, 0, 0);
 let renderer;
 try { renderer = new THREE.WebGLRenderer({ antialias: true }); }
 catch { $('overlay').innerHTML = '<h2>WEBGL REQUIRED</h2><p>Please open this game in a browser with hardware acceleration enabled.</p>'; throw new Error('WebGL unavailable'); }
@@ -81,7 +82,7 @@ function trackInfo(){
 }
 function selectTrack(id){
  const next=TRACKS.find(t=>t.id===id);if(!next)return;
- if(next!==track){world.dispose();track=next;world=createWorld(scene,track);}
+ if(next!==track){world.dispose();track=next;world=createWorld(scene,track);resize();}
  scene.background.set(track.sky);sun.color.set(track.sun);state='ready';loadBest();reset();
  $('countdown').textContent='';$('pause').textContent='Ⅱ';$('overlay').classList.remove('hidden');
  $('overlay').querySelector('.eyebrow').textContent=`${track.biome} · ${track.rating} · ${track.difficulty}/4`;
@@ -130,7 +131,23 @@ function finish(){
 }
 function syncModels(){for(const c of cars){c.g.position.set(c.x,c.air,c.z);c.g.rotation.y=c.angle;c.g.rotation.x=-c.vy*.018;c.g.rotation.z=Math.sin(raceTime*28+c.i)*Math.min(Math.hypot(c.vx,c.vz)*.0015,.035);}marker.position.set(cars[0].x,cars[0].air+3.3,cars[0].z);}
 function updateHUD(){if(state==='racing')$('race-message').textContent=cars[0].surface&&cars[0].surface!=='gravel'?SURFACES[cars[0].surface].label:'';$('position').innerHTML=`0${position()}<span>/ 04</span>`;$('lap').innerHTML=`0${Math.min(3,Math.floor(Math.max(0,cars[0].progress))+1)}<span>/ 03</span>`;$('time').textContent=formatTime(raceTime);$('speed').textContent=Math.round(Math.hypot(cars[0].vx,cars[0].vz)*5);$('nitro-fill').style.width=`${cars[0].nitro}%`;}
-function resize(){const w=viewport.clientWidth,h=viewport.clientHeight,aspect=w/h;const halfW=Math.max(53,33*aspect),halfH=halfW/aspect;Object.assign(camera,{left:-halfW,right:halfW,top:halfH,bottom:-halfH});camera.updateProjectionMatrix();renderer.setSize(w,h);}
+function resize(){
+ const w=viewport.clientWidth,h=viewport.clientHeight;if(!w||!h)return;
+ const aspect=w/h,bounds=new THREE.Box3(),point=new THREE.Vector3();
+ camera.updateMatrixWorld(true);
+ const include=(x,y,z)=>bounds.expandByPoint(point.set(x,y,z).applyMatrix4(camera.matrixWorldInverse));
+ const margin=track.width/2+2;
+ // Fit the road, barriers and airborne cars in camera space, including on phones.
+ for(let i=0;i<world.points.length;i+=4){const p=world.points[i];
+   for(const dx of [-margin,margin])for(const dz of [-margin,margin])for(const y of [0,5])include(p.x+dx,y,p.z+dz);
+ }
+ for(const dx of [-10,10])for(const y of [0,6])include(track.banner[0]+dx,y,track.banner[1]);
+ if(track.id==='gravel')for(const x of [-36,36])include(x,4,-40);
+ const cx=(bounds.min.x+bounds.max.x)/2,cy=(bounds.min.y+bounds.max.y)/2;
+ const halfW=Math.max((bounds.max.x-bounds.min.x)/2+3,((bounds.max.y-bounds.min.y)/2+3)*aspect),halfH=halfW/aspect;
+ Object.assign(camera,{left:cx-halfW,right:cx+halfW,top:cy+halfH,bottom:cy-halfH});
+ camera.updateProjectionMatrix();renderer.setSize(w,h);
+}
 new ResizeObserver(resize).observe(viewport);resize();reset();
 renderer.setAnimationLoop(now=>{const dt=last?Math.min((now-last)/1000,.1):0;last=now;accumulator+=dt;while(accumulator>=1/60){step(1/60);accumulator-=1/60;}syncModels();updateHUD();if(gain){gain.gain.setTargetAtTime(sound&&state==='racing'?.025:0,audioContext.currentTime,.1);oscillator.frequency.setTargetAtTime(45+Math.hypot(cars[0].vx,cars[0].vz)*8,audioContext.currentTime,.08);}renderer.render(scene,camera);});
 // Read-only telemetry for smoke tests and debugging.

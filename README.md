@@ -11,6 +11,8 @@ npm run dev
 
 Open the local URL printed by Vite. `npm run build` creates a static production build in `dist`; `npm run preview` serves that build. Requires WebGL 2. Fonts have local fallbacks; all game geometry is generated locally.
 
+The fixed orthographic camera uses an isometric view (45° azimuth, 35.3° elevation). Framing fits each course, including barriers, jumps and the start banner, when the track or viewport changes.
+
 ## Play
 
 - Arrow keys or WASD: accelerate, brake/reverse, and steer relative to the car.
