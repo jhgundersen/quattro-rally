@@ -76,6 +76,11 @@ export function driveCar(c,world,track,dt,controls) {
   c.vx+=(fx*acceleration-c.vx*drag-side*fz*grip)*dt;
   c.vz+=(fz*acceleration-c.vz*drag+side*fx*grip)*dt;
   if(near.distance>track.width/2){c.vx*=Math.exp(-1.8*dt);c.vz*=Math.exp(-1.8*dt);}
+  if(track.banking&&c.air<.1){
+    // Gravity projected onto the sloped road pulls toward the lower lane.
+    const {normal}=world.roadFrame(c.x,c.z,c.t);
+    c.vx+=9.81*normal.y*normal.x*dt;c.vz+=9.81*normal.y*normal.z*dt;
+  }
   c.x+=c.vx*dt;c.z+=c.vz*dt;
   const edge=track.width/2+.9;
   const boundary=world.nearest(c.x,c.z,c.t);

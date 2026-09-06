@@ -14,6 +14,3 @@
 #viewport:has(> #results:not(.hidden)){min-height:520px}#results>*:not(.confetti){flex-shrink:0}@media(max-width:750px){#viewport:has(> #results:not(.hidden)){min-height:490px}}
 #results{overflow-x:hidden}@media(max-width:750px){#viewport:has(> #results:not(.hidden)){min-height:530px}.hud .hud-cell strong{white-space:nowrap}.hud .hud-cell strong span{font-size:8px}}
 #driver-strip{position:static;padding:7px 22px;background:#1d2826;border-bottom:1px solid #4c5140;pointer-events:auto}@media(max-width:750px){#driver-strip{padding:5px 10px;gap:4px}.speed{bottom:65px}}
-
-@media(min-width:1001px){.track-card:last-child{grid-column:span 2}.track-card:last-child .course-map{height:90px}}
-@media(max-width:750px){.track-card:last-child{grid-column:1/-1}.track-card:last-child .course-map{height:90px}}

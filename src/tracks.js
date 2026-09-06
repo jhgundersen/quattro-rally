@@ -52,6 +52,12 @@ export const TRACKS = [
     tip:'A miniature salute to Le Mans. Attack the two Mulsanne chicanes, brake for Arnage, then flow through the Porsche Curves.',
     points:[[-36,8],[-45,4],[-51,-5],[-45,-14],[-54,-22],[-53,-36],[-39,-36],[-28,-33],[-25,-13],[-12,-13],[-9,-31],[6,-29],[8,-8],[22,-8],[26,-22],[40,-17],[56,-1],[51,16],[38,23],[30,23],[27,37],[12,36],[7,16],[-5,17],[-11,32],[-24,27],[-25,16],[-34,14]],
     jumps:[], patches:[], obstacles:[] },
+  { id:'daytona', name:'Daytona', biome:'SUPER SPEEDWAY', difficulty:3, rating:'PRO', width:12, aiSpeed:25, seed:625,
+    layout:'HIGH-BANKED TRI-OVAL', accent:'#7ec6de', revision:1, surface:'asphalt', banking:true, rotation:-45, landmark:[0,1], banner:[-33,-33],
+    ground:'#668b5d', road:'#525b62', rut:'#4b5359', edge:'#f1ede0', rock:'#abb3ae', sky:'#89b7cb', sun:'#fff2d2', foliage:'#487850', bank:'#55704a',
+    tip:'Ride the 31° high banks, hold your line through the tri-oval, and save nitro for the long backstretch.',
+    points:[[0,33],[-23,29],[-43,19],[-51,1],[-45,-20],[-28,-28],[0,-28],[28,-28],[45,-20],[51,1],[43,19],[23,29]],
+    jumps:[], patches:[], obstacles:[] },
 ];
 export function surfaceAt(x,z,air,patches,base='gravel') {
   if(air>.4)return base;

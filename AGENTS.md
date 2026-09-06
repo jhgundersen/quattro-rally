@@ -124,3 +124,23 @@ Races have one player, three AI opponents, and three laps. Controls: WASD/arrows
 
 - Le Mans is now revision 2. Its control polygon spans more of the board, with deep Mulsanne S-bends and a pronounced Porsche/Arnage return instead of shallow kinks. Lap distance increased from roughly 250 to 333 world metres; prior best-time records remain under revision 1.
 - Full geometry, four-car race and ace-pace tests pass with existing limits. Build/diff checks pass. Desktop and mobile framing were visually checked in Chromium; fixed isometric view is retained.
+
+## Daytona banking (2026-09-06)
+
+- Eighth course `daytona`, revision 1: 12 m wide asphalt tri-oval, 31° end turns, 18° front stretch and 6° backstretch with smooth transitions. Original procedural pits, grandstands, Lake Lloyd, outside retaining wall and raised lane stripes. No jumps/obstacles.
+- `createCourse` exposes `bankAngle(t)`, `roadHeight(t,lane)` and `roadFrame(x,z,previous)`. `at()` includes road elevation, while route samples/tangents remain planar for lap distance and steering. All older courses return zero road height.
+- Physics projects gravity down the bank. `syncModels` aligns Daytona cars to the road normal and raises the player marker; other courses retain their previous pose. Camera bounds include both raised road edges plus car clearance.
+- Road ribbons use point.y; barriers and finish tiles follow road elevation. Tyre sampling accepts an optional height callback, storing per-vertex heights so both strips follow the bank. Dust originates at road elevation.
+- `banking.test.js` checks actual slopes, continuity, car/mesh height agreement, downhill gravity, flat-course preservation and tyre-strip elevations. Full tests/build/diff checks passed. Chromium checked all eight course views and Daytona mobile framing; simulation is not a human-driven full race. No deployment performed.
+
+## Daytona bowl and turned layout (2026-09-06)
+
+- A road banked at 31° and tilted away from a camera 35.3° above the ground is nearly edge-on: the last turn rendered at a 4.3° grazing angle and effectively vanished. `rotation:-45` on the track turns the layout so the long axis lies across the screen and both turns face the camera side-on. Worst grazing angle is now 10.8°, and the oval fills the widescreen frame about 11% larger. Measure the grazing angle before changing this figure.
+- `createCourse` rotates the control points; `bankAngle` converts back, so the 31/18/6° profile stays authored in the axis-aligned frame. Any banked layout added later should be drawn square and turned with `rotation`.
+- Three separate faults made the raised road look like it was floating, and all three had to go before it read as solid. Do not treat this as a matter of colour or slope alone.
+  1. `sun.shadow.camera` was a fixed `±65 x ±50` box. Any course reaching past it lost its shadows part-way, leaving straight-cut shadow edges lying on the grass, detached from the geometry. `fitShadows()` now sizes the frustum from the course radius (`+24` banked, `+14` otherwise) and runs on load and on every track change. Re-check it before enlarging any course.
+  2. The apron crest sat at the barrier lane, `.85` m outboard of the road edge, so an open slot ran the whole lap under the wall and showed daylight beneath the road. A shoulder ribbon from the crest to the road edge closes the surface; it must stay continuous: infield, inner verge, road, shoulder, outer bank, plinth, ground.
+  3. A grass slope alone, in the ground colour, gives the eye no line to read the mass against. The outer bank now falls to a `1.1` m retaining plinth in `track.rock`, whose foot draws a hard edge on the ground. That edge is what makes the speedway sit on the board.
+- Bank faces use `side: THREE.DoubleSide`; the inner and outer skirts wind in opposite directions, so single-sided material leaves one of them invisible. The ground plate grows to 140x128 for banked courses; the footprint including bank and plinth reaches about ±63 m.
+- Daytona's infield, pits, grandstands and ground decals live in an `infield` group that carries the same turn, so they stay square to the oval. Grandstands moved back to clear the backstretch apron. The selector preview frame is padded to `-4 -4 116 92` so a turned layout and its 5-unit stroke are not clipped.
+- `banking.test.js` finds the turn by steepest bank rather than a fixed coordinate, so it follows the layout. Full tests/build/diff checks passed. Chromium checked the turned Daytona view and the Gravel Pit for shadow regressions; desktop and phone framing were verified numerically against `resize()`. Background tabs throttle the animation loop, so no in-browser lap was driven. No deployment performed.

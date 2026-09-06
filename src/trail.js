@@ -33,10 +33,11 @@ export function createTrail(scene, {samples = 150, spacing = .8, life = 11} = {}
   const marks = [];
   const tint = new THREE.Color();
 
-  function push(x, z, angle, surface, strength) {
+  function push(x, z, angle, surface, strength, heightAt) {
     const nx = Math.cos(angle), nz = -Math.sin(angle);
     tint.set(markColor(surface));
-    marks.push({x, z, nx, nz, age:0, strength, r:tint.r, g:tint.g, b:tint.b});
+    const heights=OFFSETS.map(o=>heightAt?heightAt(x+nx*o,z+nz*o):0);
+    marks.push({x, z, nx, nz, heights, age:0, strength, r:tint.r, g:tint.g, b:tint.b});
     if (marks.length > samples) marks.shift();
   }
 
@@ -47,7 +48,7 @@ export function createTrail(scene, {samples = 150, spacing = .8, life = 11} = {}
       for (let j = 0; j < 4; j++) {
         const p = (i * 4 + j) * 3, c = (i * 4 + j) * 4;
         position[p] = m.x + m.nx * OFFSETS[j];
-        position[p+1] = .055;
+        position[p+1] = m.heights[j]+.055;
         position[p+2] = m.z + m.nz * OFFSETS[j];
         color[c] = m.r; color[c+1] = m.g; color[c+2] = m.b; color[c+3] = alpha;
       }
@@ -61,18 +62,18 @@ export function createTrail(scene, {samples = 150, spacing = .8, life = 11} = {}
     get length() { return marks.length; },
     // A car that jumps or is placed on the grid must not drag a mark across the
     // arena, so a long hop closes the old ribbon and opens a new one at zero.
-    sample(x, z, angle, surface, strength) {
+    sample(x, z, angle, surface, strength, heightAt) {
       const last = marks[marks.length - 1];
       if (last) {
         const moved = Math.hypot(x - last.x, z - last.z);
         if (moved < spacing) return false;
         if (moved > spacing * 4) {
-          push(last.x, last.z, angle, surface, 0);
-          push(x, z, angle, surface, 0);
+          push(last.x, last.z, angle, surface, 0, heightAt);
+          push(x, z, angle, surface, 0, heightAt);
           return true;
         }
       }
-      push(x, z, angle, surface, strength);
+      push(x, z, angle, surface, strength, heightAt);
       return true;
     },
     fade(dt) {
