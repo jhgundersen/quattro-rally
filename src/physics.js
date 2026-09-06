@@ -3,7 +3,7 @@ import {SURFACES,surfaceAt,collideObstacle} from './tracks.js';
 const clamp=(v,a,b)=>Math.max(a,Math.min(b,v));
 
 export function aiControls(c,world,track,cars=[]) {
-  const near=world.nearest(c.x,c.z),speed=Math.hypot(c.vx,c.vz);
+  const near=world.nearest(c.x,c.z,c.t),speed=Math.hypot(c.vx,c.vz);
   // Skill above 1 is the locked ace: a racing line, later braking, freer nitro.
   const skill=c.skill||1;
   // Use a physical corner speed and braking distance, instead of slowing
@@ -58,7 +58,7 @@ export function aiControls(c,world,track,cars=[]) {
 }
 
 export function driveCar(c,world,track,dt,controls) {
-  const near=world.nearest(c.x,c.z);
+  const near=world.nearest(c.x,c.z,c.t);
   c.surface=surfaceAt(c.x,c.z,c.air,world.patches,track.surface);
   const surface=SURFACES[c.surface];
   let {throttle=0,steer=0,brake=false,boost=false}=controls;
@@ -78,7 +78,7 @@ export function driveCar(c,world,track,dt,controls) {
   if(near.distance>track.width/2){c.vx*=Math.exp(-1.8*dt);c.vz*=Math.exp(-1.8*dt);}
   c.x+=c.vx*dt;c.z+=c.vz*dt;
   const edge=track.width/2+.9;
-  const boundary=world.nearest(c.x,c.z);
+  const boundary=world.nearest(c.x,c.z,c.t);
   if(boundary.distance>edge){
     const nx=(c.x-boundary.point.x)/boundary.distance,nz=(c.z-boundary.point.z)/boundary.distance;
     c.x=boundary.point.x+nx*edge;c.z=boundary.point.z+nz*edge;
@@ -91,7 +91,7 @@ export function driveCar(c,world,track,dt,controls) {
   }
   c.vy-=16*dt;c.air=Math.max(0,c.air+c.vy*dt);if(c.air===0)c.vy=Math.max(0,c.vy);
   for(const o of world.obstacles)collideObstacle(c,o);
-  const next=world.nearest(c.x,c.z).t;
+  const next=world.nearest(c.x,c.z,c.t).t;
   c.progress=advanceProgress(c.t,next,c.progress);c.t=next;
   return {speed,fx,fz,surface};
 }

@@ -39,9 +39,15 @@ test('every track has distinct geometry, valid difficulty and passable obstacles
     const a=curve.getTangentAt(j/1200),b=curve.getTangentAt((j/1200+.1/length)%1);
     assert.ok(.1/a.angleTo(b)>t.width/2+.85,`${t.id}: hairpin radius too small for barriers`);
   }
-  // Distant course sections must not overlap and allow ambiguous lap tracking.
+  // Only declared crossings may overlap; all other lanes retain clearance.
   const samples=Array.from({length:160},(_,j)=>curve.getPointAt(j/160));
-  for(let a=0;a<160;a++)for(let b=a+1;b<160;b++){const separation=Math.min(b-a,160-(b-a))*length/160;if(separation>t.width*2)assert.ok(samples[a].distanceTo(samples[b])>t.width+1.7,`${t.id}: overlapping course sections`);}
+  for(let a=0;a<160;a++)for(let b=a+1;b<160;b++){
+   const separation=Math.min(b-a,160-(b-a))*length/160;
+   const crossing=t.crossings?.some(c=>
+    Math.hypot(samples[a].x-c.x,samples[a].z-c.z)<c.radius &&
+    Math.hypot(samples[b].x-c.x,samples[b].z-c.z)<c.radius);
+   if(separation>t.width*2&&!crossing)assert.ok(samples[a].distanceTo(samples[b])>t.width+1.7,`${t.id}: overlapping course sections`);
+  }
  });
 });
 

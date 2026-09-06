@@ -72,7 +72,7 @@ function carModel(color,index){
 const cars=colors.map((color,i)=>({ ...carModel(color,i),i,x:0,z:0,vx:0,vz:0,angle:0,t:0,progress:0,nitro:100,air:0,vy:0,jumpCooldown:0,finished:false,finishTime:0}));
 const marker=new THREE.Mesh(new THREE.ConeGeometry(.65,1.1,3),new THREE.MeshBasicMaterial({color:'#ffe1a0'}));marker.rotation.z=Math.PI;scene.add(marker);
 const trails=cars.map(()=>createTrail(scene));
-const dust=createDust(scene,{count:760});
+const dust=createDust(scene,{count:1400});
 let state='ready',raceTime=0,countdown=0,keys=new Set(),last=0,accumulator=0,best=null;
 function loadBest(){best=null;try{best=Number(localStorage.getItem(`quattro-best-${track.id}-v${track.revision}`))||null;}catch{}}
 loadBest();
@@ -106,7 +106,7 @@ function selectTrack(id){
  $('lineup').style.display='flex';$('start').innerHTML='LET’S RACE <span>↗</span>';$('status').textContent=pick(MESSAGES.ready);
  document.querySelectorAll('.track-card').forEach(b=>b.disabled=false);trackInfo();
 }
-$('tracks').innerHTML=TRACKS.map((t,i)=>`<button class="track-card" data-track="${t.id}" aria-label="${t.name}, ${t.layout}, ${t.biome}, difficulty ${t.difficulty} of 4, ${t.rating}" aria-pressed="${i===0}" style="--biome:${t.road}"><span class="track-number">0${i+1} / ${t.biome}</span>${coursePreview(t)}<strong>${t.name}</strong><span class="layout-name">${t.layout}</span><span class="track-rating">${'●'.repeat(t.difficulty)}${'○'.repeat(4-t.difficulty)} <b>${t.rating}</b></span></button>`).join('');
+$('tracks').innerHTML=TRACKS.map((t,i)=>`<button class="track-card" data-track="${t.id}" aria-label="${t.name}, ${t.layout}, ${t.biome}, difficulty ${t.difficulty} of 4, ${t.rating}" aria-pressed="${i===0}" style="--biome:${t.accent||t.road}"><span class="track-number">0${i+1} / ${t.biome}</span>${coursePreview(t)}<strong>${t.name}</strong><span class="layout-name">${t.layout}</span><span class="track-rating">${'●'.repeat(t.difficulty)}${'○'.repeat(4-t.difficulty)} <b>${t.rating}</b></span></button>`).join('');
 for(const b of document.querySelectorAll('.track-card'))b.onclick=()=>selectTrack(b.dataset.track);
 $('change-track').onclick=()=>{selectTrack(track.id);$('tracks').scrollIntoView({block:'nearest',behavior:'smooth'});};
 trackInfo();
@@ -140,18 +140,18 @@ function kickUpDust(c,dt,speed,slip,fx,fz,surface,boosting){
  // Airborne cars kick up nothing until they land, and then all at once.
  if(c.air>.25){c.landing=density>=.05;return;}
  if(c.landing){c.landing=false;
-  for(let i=0;i<11*density;i++)dust.spawn(c.x-fx*1.1+(random()-.5)*2.4,.4+random()*.6,c.z-fz*1.1+(random()-.5)*2.4,surface.color,
-   {radius:4.5+random()*3,opacity:.3*density,seconds:2.2+random(),vx:(random()-.5)*4.5,vy:1.6+random(),vz:(random()-.5)*4.5,growth:6});
+  for(let i=0;i<18*density;i++)dust.spawn(c.x-fx*1.1+(random()-.5)*2.4,.4+random()*.6,c.z-fz*1.1+(random()-.5)*2.4,surface.color,
+   {radius:5.5+random()*3.5,opacity:.43*density,seconds:2.7+random(),vx:(random()-.5)*4.5,vy:1.6+random(),vz:(random()-.5)*4.5,growth:6});
  }
  if(speed<3||density<.05)return;
- dustDebt[c.i]+=dt*density*(9+speed*.85+slip*2+(boosting?12:0));
+ dustDebt[c.i]+=dt*density*(15+speed*1.4+slip*3+(boosting?20:0));
  while(dustDebt[c.i]>=1){
   dustDebt[c.i]-=1;
-  const wide=random()<.3;
+  const wide=random()<.45;
   dust.spawn(c.x-fx*(1.5+random()),.3+random()*.7,c.z-fz*(1.5+random()),surface.color,{
-   radius:wide?3.4+random()*2.6:1.5+random()*1.3,
-   opacity:(wide?.26:.34)*density,
-   seconds:wide?1.9+random()*1.2:.9+random()*.6,
+   radius:wide?4+random()*3:1.8+random()*1.6,
+   opacity:(wide?.36:.46)*density,
+   seconds:wide?2.4+random()*1.3:1.2+random()*.7,
    vx:-fx*speed*.14+(random()-.5)*2.4, vy:.8+random()*1.2, vz:-fz*speed*.14+(random()-.5)*2.4,
    growth:wide?5.5:3.2,
   });
@@ -230,6 +230,7 @@ function resize(){
    for(const dx of [-margin,margin])for(const dz of [-margin,margin])for(const y of [0,5])include(p.x+dx,y,p.z+dz);
  }
  for(const dx of [-10,10])for(const y of [0,6])include(track.banner[0]+dx,y,track.banner[1]);
+ for(const p of world.framingPoints)include(p.x,p.y,p.z);
  if(track.id==='garage')for(const x of [-57,57])for(const z of [-41,41])include(x,6,z);
  if(track.id==='gravel')for(const x of [-36,36])include(x,4,-40);
  const cx=(bounds.min.x+bounds.max.x)/2,cy=(bounds.min.y+bounds.max.y)/2;

@@ -61,3 +61,13 @@ Difficulty combines road width, course geometry, surface hazards and opponent ta
 Course definitions live in `src/tracks.js`, shared curve geometry in `src/course.js`, driving in `src/physics.js`, and procedural scenery in `src/world.js`. The track selector previews the same curve used by the race. Rounded curves, red-and-white barriers, and direction arrows keep the folded lanes readable. AI lookahead uses distance along the road, plans braking from upcoming curvature, spends nitro on clear straights, and selects passing lanes around slower cars. Four-car simulations finish the original courses roughly 8–19% faster than the previous controller, without changing the shared vehicle forces.
 
 Track changes dispose their old GPU geometry, materials and textures. Tests check minimum corner radii, separation of adjacent lanes, obstacle clearance, and four-driver three-lap simulations on every course using the actual game physics. The original four courses use revision 2 and the garage starts at revision 1, with separate best times; old stored records remain untouched.
+
+### The Bog — Mudlands
+
+The sixth stage is a wet-mud figure eight with an open, ground-level crossing. Boost over the approach ramp to clear crossing traffic; slower cars can collide in the intersection. Deep mud, standing water, reeds and churned banks surround the two loops. Follow the arrows straight through the X: route tracking and the driving boundary stay on your current branch, so turning onto the other loop cannot skip half a lap. Both loops must be driven on each lap.
+
+### Le Mans — Endurance Circuit
+
+The seventh stage compresses the Circuit de la Sarthe into the fixed isometric arena: the Dunlop/Esses approach, two Mulsanne chicanes, Mulsanne corner, Indianapolis/Arnage and the Porsche/Ford return. Wider bends preserve drivable road edges at arcade scale. Asphalt, blue-and-yellow kerbs, a Dunlop footbridge, pits and grandstands distinguish it from the dirt stages; it has no jump ramps. Reference: [ACO's circuit guide](https://www.24h-lemans.com/en/news/24-hours-of-le-mans-the-legendary-spots-on-the-circuit-de-la-sarthe-19372) and the [circuit layout map](https://indiaongo.in/wp-content/uploads/2022/04/circuit-de-la-sarthe-racecourse-layout.jpg).
+
+Dust plumes emit roughly 60% more particles, with greater opacity, more broad billows, longer lifetimes and heavier landing bursts. The bounded 1,400-particle pool still renders in one draw call. Surface density keeps asphalt and concrete mostly clean.

@@ -3,7 +3,7 @@ import * as THREE from 'three';
 // How much a surface gives up when a wheel spins on it. Loose dirt hangs in the
 // air; concrete and ice barely smoke at all.
 export const DUST_DENSITY = {
-  gravel:1, sand:1.35, mud:.6, water:.75, ice:.35, concrete:.12, oil:.25,
+  asphalt:.08, wetMud:.75, gravel:1, sand:1.35, mud:.6, water:.75, ice:.35, concrete:.12, oil:.25,
 };
 export const dustDensity = (surface) => DUST_DENSITY[surface] ?? DUST_DENSITY.gravel;
 

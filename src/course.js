@@ -28,9 +28,12 @@ export function createCourse(track) {
     const p=curve.getPointAt(t),d=curve.getTangentAt(t);
     return p.add(new THREE.Vector3(-d.z,0,d.x).multiplyScalar(lane));
   }
-  function nearest(x,z) {
+  function nearest(x,z,previous) {
     let idx=0,min=Infinity;
     for(let i=0;i<count;i++) {
+      // At a crossover the route remains on its current branch. The local
+      // search also prevents a turn at the X from earning half a lap.
+      if(track.crossings && previous!==undefined && Math.abs(((i/count-previous+1.5)%1)-.5)*length>12)continue;
       const p=points[i],d=(p.x-x)**2+(p.z-z)**2;
       if(d<min){min=d;idx=i;}
     }

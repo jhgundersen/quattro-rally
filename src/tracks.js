@@ -1,4 +1,6 @@
 export const SURFACES = {
+  asphalt: { grip: 6.2, drag: .48, power: 1, color: '#a6a9ad', label: 'ASPHALT' },
+  wetMud: { grip: 3.1, drag: .85, power: .86, color: '#674c36', label: 'WET MUD' },
   concrete: { grip: 5.8, drag: .5, power: 1, color: '#b3bcc2', label: 'CONCRETE' },
   oil: { grip: 1.3, drag: .45, power: .9, color: '#716481', label: 'OIL · MIND THE SLIDE' },
   gravel: { grip: 4.2, drag: .55, power: 1, color: '#cfb78b', label: 'GRAVEL' },
@@ -37,6 +39,19 @@ export const TRACKS = [
     points:[[-44,26],[-44,0],[-44,-26],[0,-29],[44,-26],[44,0],[44,26],[12,26],[12,8],[28,8],[28,-10],[0,-10],[-26,-10],[-26,10],[-8,10],[-8,26]],
     jumps:[.20,.49], patches:[{t:.37,lane:1.8,type:'oil',length:8,width:4},{t:.80,lane:-2,type:'oil',length:6,width:3}],
     obstacles:[{t:.13,lane:3,type:'cone',radius:.65},{t:.61,lane:-3,type:'cone',radius:.65}] },
+  { id:'bog', name:'The Bog', biome:'MUDLANDS', difficulty:3, rating:'PRO', width:9, aiSpeed:19, seed:416,
+    layout:'CROSSOVER FIGURE EIGHT', revision:1, surface:'wetMud', crossings:[{x:0,z:0,radius:12}], landmark:[-29,0], banner:[0,-35],
+    ground:'#4c5034', road:'#715039', rut:'#493322', edge:'#d5bc79', rock:'#655b43', sky:'#686951', sun:'#e8d1a0', foliage:'#596541',
+    tip:'Follow the arrows through both loops. Boost off the crossing ramp to clear traffic; turning at the X cannot skip a loop.',
+    points:[[-44,0],[-44,-26],[-24,-26],[0,0],[24,26],[44,26],[44,0],[44,-26],[24,-26],[0,0],[-24,26],[-44,26]],
+    jumps:[.225], patches:[{t:.06,lane:2,type:'mud',length:15,width:5},{t:.40,lane:-2,type:'mud',length:17,width:5},{t:.61,lane:2,type:'water',length:9,width:4},{t:.88,lane:-2,type:'mud',length:16,width:5}],
+    obstacles:[{t:.12,lane:3,type:'log',radius:.8},{t:.57,lane:-3,type:'rock',radius:.8}] },
+  { id:'lemans', name:'Le Mans', biome:'ENDURANCE CIRCUIT', difficulty:3, rating:'PRO', width:7.2, aiSpeed:23, seed:524,
+    layout:'CIRCUIT DE LA SARTHE', accent:'#d4bd60', revision:2, surface:'asphalt', landmark:[-10,1], banner:[3,-33],
+    ground:'#658052', road:'#454c52', rut:'#40474d', edge:'#e6ce56', rock:'#b5af96', sky:'#889b95', sun:'#fff0cf', foliage:'#365d41',
+    tip:'A miniature salute to Le Mans. Attack the two Mulsanne chicanes, brake for Arnage, then flow through the Porsche Curves.',
+    points:[[-36,8],[-45,4],[-51,-5],[-45,-14],[-54,-22],[-53,-36],[-39,-36],[-28,-33],[-25,-13],[-12,-13],[-9,-31],[6,-29],[8,-8],[22,-8],[26,-22],[40,-17],[56,-1],[51,16],[38,23],[30,23],[27,37],[12,36],[7,16],[-5,17],[-11,32],[-24,27],[-25,16],[-34,14]],
+    jumps:[], patches:[], obstacles:[] },
 ];
 export function surfaceAt(x,z,air,patches,base='gravel') {
   if(air>.4)return base;

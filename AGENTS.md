@@ -104,3 +104,23 @@ Races have one player, three AI opponents, and three laps. Controls: WASD/arrows
 - Sound defaults to on. The existing sound button controls music and engine audio together, with matching accessible labels and pressed state. Race start/resume provides browser user activation.
 - The playlist advances when a song ends and wraps; each new race starts with the next song. Music continues during results, pauses on race pause/mute/blur/hidden tabs, and stops in course selection. Resuming preserves position. No MP3 preload before racing.
 - Playlist tests cover looping, race rotation, pause continuity, and rejected playback recovery. Chromium verified actual MP3 playback, pause/resume, mute/unmute, and song rotation.
+
+## Mudlands crossover update (2026-09-06)
+
+- Sixth course: `bog` / The Bog, revision 1, difficulty 3, a figure eight with a ground-level crossing at route positions .25 and .75. A ramp at .225 lets a boosted car clear grounded crossing traffic; a slow approach remains vulnerable.
+- `wetMud` is the entire road's base surface, with deeper `mud` patches and standing water. Mud banks, reeds and waterlogged infields define the biome.
+- `createCourse().nearest(x,z,previous)` restricts crossover cars to the current branch within 12 metres of route distance. All physics/AI/progress queries pass `c.t`; scenery keeps the global nearest query. The driving boundary prevents taking the other branch at the X, including airborne attempts. Do not remove this distinction or use global nearest for crossover lap progress.
+- Declared `crossings` open the visual barriers and allow geometric overlap only inside their radius. `src/crossover.test.js` covers branch continuity, reverse/lap wrap, ground/air shortcut attempts, and actual boosted versus slow crossing clearance and collisions.
+- Six-stage selector uses six desktop columns, three at medium width and two on mobile. Tests/build/diff checks passed; Chromium checked all course framing and Bog mobile selector/HUD. Full production-lineup simulation completed; this was not a human-driven browser race. Changes are local until released.
+
+## Le Mans and denser dust (2026-09-06)
+
+- Seventh course `lemans` / Le Mans, revision 1: asphalt, width 7.2, no jumps or road obstacles. A compressed Circuit de la Sarthe outline retains two Mulsanne chicanes, Mulsanne corner, Arnage and the Porsche/Ford return. Geometry tests retain the same minimum-radius/clearance rules. Physics tests require grounded driving for tracks without jumps.
+- Procedural pits, Dunlop footbridge, grandstands and blue/yellow kerbs distinguish it. `createWorld` returns `framingPoints` for outlying scenery; camera framing includes these so pits stay visible on mobile. `accent` optionally overrides road colour for readable selector previews.
+- Dust now emits roughly 60% more particles, with stronger opacity, 45% broad billows, longer life and heavier landing bursts. Main pool is bounded at 1,400, still one draw call. Asphalt uses low density and dark rubber marks.
+- Seven-stage selector uses four columns on desktop (last card spans two), three at medium widths, two on mobile (last card spans both). Tests/build/diff checks passed; Chromium inspected stronger gravel dust and Le Mans desktop/mobile framing. Existing Bog work is preserved. No release performed.
+
+## Le Mans corner revision (2026-09-06)
+
+- Le Mans is now revision 2. Its control polygon spans more of the board, with deep Mulsanne S-bends and a pronounced Porsche/Arnage return instead of shallow kinks. Lap distance increased from roughly 250 to 333 world metres; prior best-time records remain under revision 1.
+- Full geometry, four-car race and ace-pace tests pass with existing limits. Build/diff checks pass. Desktop and mobile framing were visually checked in Chromium; fixed isometric view is retained.

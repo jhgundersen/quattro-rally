@@ -3,7 +3,7 @@ import * as THREE from 'three';
 // Every surface takes a mark differently: rubber on concrete, churned earth on
 // gravel and mud, sprayed grains in sand, a wet smear through water and ice.
 export const MARK_COLORS = {
-  gravel:'#584327', concrete:'#2f3037', mud:'#3a2817', sand:'#b0854a',
+  asphalt:'#25282d', wetMud:'#302014', gravel:'#584327', concrete:'#2f3037', mud:'#3a2817', sand:'#b0854a',
   water:'#7fb6bd', ice:'#d6e9f2', oil:'#221b2b',
 };
 export const markColor = (surface) => MARK_COLORS[surface] || MARK_COLORS.gravel;
