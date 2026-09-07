@@ -1,1 +1,22 @@
-{"name":"quattro-rally","version":"1.0.0","private":true,"type":"module","scripts":{"dev":"vite --host 0.0.0.0","build":"vite build","preview":"vite preview --host 0.0.0.0","test":"node --test"},"dependencies":{"three":"^0.180.0"},"devDependencies":{"vite":"^7.1.0"}}
+{
+  "name": "quattro-rally",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "vite --host 0.0.0.0",
+    "build": "vite build && node scripts/build-server.js",
+    "preview": "vite preview --host 0.0.0.0",
+    "test": "node --test",
+    "dev:server": "node --watch server/index.js",
+    "start:server": "node server/index.js"
+  },
+  "dependencies": {
+    "three": "^0.180.0",
+    "ws": "^8.21.3"
+  },
+  "devDependencies": {
+    "esbuild": "^0.28.2",
+    "vite": "^7.1.0"
+  }
+}

@@ -40,3 +40,5 @@ jobs:
         run: |
           curl --fail --silent --show-error --retry 3 --resolve "quattro.jonh.no:443:$DEPLOY_HOST" https://quattro.jonh.no/ -o /tmp/live-index.html
           cmp dist/index.html /tmp/live-index.html
+      - name: Verify multiplayer service
+        run: curl --fail --silent --show-error --retry 8 --retry-all-errors --retry-delay 3 https://quattro.jonh.no/multiplayer/health
