@@ -1,6 +1,6 @@
 import {test} from 'node:test';
 import assert from 'node:assert/strict';
-import {Room,cleanInput,cleanText,FINISHERS} from './rooms.js';
+import {Room,cleanInput,cleanText,FINISHERS,VERSION} from './rooms.js';
 import {FACES} from '../src/drivers.js';
 import {createService} from './service.js';
 import {WebSocket} from 'ws';
@@ -90,9 +90,9 @@ test('two WebSocket clients share a room, start once, and see the same authorita
  const service=createService({origin:'http://test.local'});await new Promise(r=>service.server.listen(0,'127.0.0.1',r));
  const url=`ws://127.0.0.1:${service.server.address().port}/multiplayer`;
  try{
-  const a=await connect(url);a.ws.send(JSON.stringify({type:'hello',version:1,name:'Alice',track:'bog',face:9}));
+  const a=await connect(url);a.ws.send(JSON.stringify({type:'hello',version:VERSION,name:'Alice',track:'bog',face:9}));
   const joined=await until(()=>a.messages.find(m=>m.type==='joined'));assert.equal(joined.face,9);
-  const b=await connect(url);b.ws.send(JSON.stringify({type:'hello',version:1,name:'Bob',room:joined.id}));
+  const b=await connect(url);b.ws.send(JSON.stringify({type:'hello',version:VERSION,name:'Bob',room:joined.id}));
   const second=await until(()=>b.messages.find(m=>m.type==='joined'));assert.equal(second.slot,1);
   assert.ok(a.messages.some(m=>m.type==='chat'&&m.slot<0&&m.text.includes('Bob')),'the lobby announces arrivals');
   assert.ok((await until(()=>b.messages.find(m=>m.type==='chat-log'))).messages.length,'a new driver gets the backlog');
@@ -106,7 +106,7 @@ test('two WebSocket clients share a room, start once, and see the same authorita
   const two=await until(()=>b.messages.find(m=>m.type==='snapshot'));
   assert.equal(one.race,two.race);assert.deepEqual(one.cars,two.cars);assert.equal(one.phase,'countdown');
   b.ws.close();await until(()=>!service.rooms.get(joined.id).players[1].connected);
-  const c=await connect(url);c.ws.send(JSON.stringify({type:'hello',version:1,room:joined.id,token:second.token}));
+  const c=await connect(url);c.ws.send(JSON.stringify({type:'hello',version:VERSION,room:joined.id,token:second.token}));
   assert.equal((await until(()=>c.messages.find(m=>m.type==='joined'))).slot,1);
  }finally{await service.close();}
 });

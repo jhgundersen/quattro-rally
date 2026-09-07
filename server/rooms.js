@@ -3,7 +3,8 @@ import {TRACKS} from '../src/tracks.js';
 import {createCourse} from '../src/course.js';
 import {aiControls,driveCar,collideCars} from '../src/physics.js';
 import {DRIVERS,GRID,cleanFace} from '../src/drivers.js';
-export const VERSION=1;
+import {scoreRound,tournamentStandings} from '../src/tournament.js';
+export const VERSION=2;
 // The flag comes out once this many cars are home; the last one is left out.
 export const FINISHERS=3;
 const token=()=>randomBytes(24).toString('base64url');
@@ -17,6 +18,7 @@ export function cleanInput(m){
 export class Room {
  constructor(trackId='gravel',now=Date.now()){
   this.id=randomBytes(6).toString('base64url');this.track=TRACKS.find(t=>t.id===trackId)||TRACKS[0];
+  this.schedule=[this.track.id];this.round=0;this.rounds=[];
   this.players=Array(4).fill(null);this.host=0;this.phase='lobby';this.race=0;this.time=0;this.updated=now;this.chat=[];
  }
  // Every chat line, from a driver or from the room itself, goes through here so
@@ -67,25 +69,38 @@ export class Room {
   if(m.type==='ready'&&this.phase==='lobby'){p.ready=m.ready===true;return;}
   if(m.type==='face'&&this.phase==='lobby'){p.face=cleanFace(m.face,p.face);return;}
   if(slot!==this.host)throw Error('Only the host can choose the track or start the race.');
+  if(m.type==='tracks'&&this.phase==='lobby'){
+   if(!Array.isArray(m.tracks)||m.tracks.length<1||m.tracks.length>5||new Set(m.tracks).size!==m.tracks.length||m.tracks.some(id=>!TRACKS.some(t=>t.id===id)))throw Error('Choose one to five different tracks.');
+   this.schedule=[...m.tracks];this.track=TRACKS.find(t=>t.id===this.schedule[0]);this.round=0;this.rounds=[];
+   for(const p of this.players)if(p)p.ready=false;return;
+  }
   if(m.type==='track'&&this.phase==='lobby'){
    const track=TRACKS.find(t=>t.id===m.track);if(!track)throw Error('Unknown track.');
-   this.track=track;for(const p of this.players)if(p)p.ready=false;return;
+   this.track=track;this.schedule=[track.id];this.round=0;this.rounds=[];for(const p of this.players)if(p)p.ready=false;return;
   }
   if(m.type==='lobby'&&this.phase==='finished'){
-   this.phase='lobby';for(const p of this.players)if(p)p.ready=false;return;
+   if(this.rounds.length<this.schedule.length)throw Error('Finish the remaining tournament rounds first.');
+   this.phase='lobby';this.round=0;this.rounds=[];this.track=TRACKS.find(t=>t.id===this.schedule[0]);for(const p of this.players)if(p)p.ready=false;return;
+  }
+  if(m.type==='next'&&this.phase==='finished'&&this.rounds.length<this.schedule.length){
+   this.round++;this.track=TRACKS.find(t=>t.id===this.schedule[this.round]);this.beginRound(now);return;
   }
   if(m.type==='start'&&this.phase==='lobby'){
    if(!this.players.filter(p=>p?.connected).every(p=>p.ready))throw Error('Wait until every driver is ready.');
+   this.round=0;this.rounds=[];this.track=TRACKS.find(t=>t.id===this.schedule[0]);this.beginRound(now);
+   return;
+  }
+  throw Error('That action is not available during this race.');
+ }
+ beginRound(now){
    this.world=createCourse(this.track);this.time=0;this.countdown=3.4;this.deadline=180;this.race++;this.phase='countdown';
    this.cars=DRIVERS.map((d,i)=>{
     const slot=GRID.indexOf(i),t=.035-.022-Math.floor(slot/2)*.026-(slot%2)*.003,pos=this.world.at(t,slot%2?2:-2),dir=this.world.curve.getTangentAt((t+1)%1);
     return {i,skill:this.players[i]?1:d.skill||1,x:pos.x,z:pos.z,vx:0,vz:0,angle:Math.atan2(dir.x,dir.z),t:(t+1)%1,progress:t-.035,nitro:100,air:0,vy:0,jumpCooldown:0,finished:false,finishTime:0,surface:this.track.surface||'gravel'};
    });
    for(const p of this.players)if(p)Object.assign(p,{inputs:[],control:{},seq:0,received:0,lastInput:now});
-   return;
-  }
-  throw Error('That action is not available during this race.');
  }
+ tournament(){return {tracks:this.schedule,round:this.round,rounds:this.rounds,standings:tournamentStandings(this.rounds),complete:this.rounds.length===this.schedule.length};}
  tick(dt,now=Date.now()){
   if(this.phase==='countdown'){this.countdown-=dt;if(this.countdown<=0)this.phase='racing';return;}
   if(this.phase!=='racing')return;
@@ -102,8 +117,8 @@ export class Room {
   collideCars(this.cars);
   // Three cars home is the chequered flag: nobody waits on the last one.
   const home=this.cars.filter(c=>c.finished).length;
-  if(home>=Math.min(FINISHERS,this.cars.length)||this.time>=this.deadline){this.phase='finished';this.updated=now;}
+  if(home>=Math.min(FINISHERS,this.cars.length)||this.time>=this.deadline){this.phase='finished';this.rounds.push(scoreRound(this.cars,this.track.id));this.updated=now;}
  }
- info(){return {type:'room',id:this.id,track:this.track.id,host:this.host,phase:this.phase,race:this.race,players:this.players.map((p,i)=>p?{slot:i,name:p.name,face:p.face,connected:p.connected,ready:p.ready}:null)};}
- snapshot(){return {type:'snapshot',phase:this.phase,race:this.race,time:this.time,countdown:this.countdown,cars:this.cars,acks:this.players.map(p=>p?.seq||0)};}
+ info(){return {type:'room',id:this.id,tournament:this.tournament(),track:this.track.id,host:this.host,phase:this.phase,race:this.race,players:this.players.map((p,i)=>p?{slot:i,name:p.name,face:p.face,connected:p.connected,ready:p.ready}:null)};}
+ snapshot(){return {type:'snapshot',track:this.track.id,tournament:this.tournament(),phase:this.phase,race:this.race,time:this.time,countdown:this.countdown,cars:this.cars,acks:this.players.map(p=>p?.seq||0)};}
 }

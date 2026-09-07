@@ -35,7 +35,7 @@ test('bank gravity pulls a coasting car toward the lower lane',()=>{
 });
 
 test('flat courses retain zero road elevation',()=>{
- for(const track of TRACKS.filter(t=>!t.banking&&!t.hills)){
+ for(const track of TRACKS.filter(t=>!t.banking&&!t.hills&&!t.stuntPark)){
   const world=createCourse(track);
   for(const t of [0,.25,.5,.75])assert.equal(world.at(t,3).y,0);
   assert.equal(world.roadFrame(0,0).height,0);

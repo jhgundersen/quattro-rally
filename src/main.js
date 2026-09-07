@@ -14,6 +14,8 @@ import { createTrail } from './trail.js';
 import { createDust, dustDensity } from './dust.js';
 import { MESSAGES, pick, resultTitle } from './messages.js';
 import { createMultiplayer } from './multiplayer.js';
+import {loopCarPose} from './stunt-motion.js';
+import {renderTournament} from './tournament-ui.js';
 
 const $ = (id) => document.getElementById(id);
 const viewport = $('viewport');
@@ -39,7 +41,7 @@ sun.shadow.mapSize.set(2048, 2048); sun.shadow.bias = -0.001; scene.add(sun);
 // ground that read as if the road were floating clear of it.
 function fitShadows(){
  let reach=0;for(const p of world.points)reach=Math.max(reach,Math.hypot(p.x,p.z));
- reach+=(track.banking||track.hills)?24:14;
+ reach+=(track.banking||track.hills||track.stuntPark)?24:14;
  Object.assign(sun.shadow.camera,{left:-reach,right:reach,top:reach,bottom:-reach});
  sun.shadow.camera.updateProjectionMatrix();
 }
@@ -76,8 +78,8 @@ const soundtrack=createSoundtrack($('soundtrack'),`${import.meta.env.BASE_URL}au
 function syncAudio(){const active=sound&&!document.hidden&&document.hasFocus();soundtrack.setPlaying(active&&['countdown','racing','finishing','finished'].includes(state));if(gain)gain.gain.setTargetAtTime(active&&state==='racing'?.018:0,audioContext.currentTime,.1);}
 function enableAudio(){if(!audioContext){audioContext=new AudioContext();oscillator=audioContext.createOscillator();oscillator.type='sawtooth';gain=audioContext.createGain();gain.gain.value=0;const filter=audioContext.createBiquadFilter();filter.frequency.value=450;oscillator.connect(filter);filter.connect(gain);gain.connect(audioContext.destination);oscillator.start();}audioContext.resume().catch(()=>{});}
 $('sound').onclick=()=>{sound=!sound;if(sound)enableAudio();$('sound').textContent=sound?'SOUND ON ↗':'SOUND OFF ↗';$('sound').setAttribute('aria-label',sound?'Mute sound':'Enable sound');$('sound').setAttribute('aria-pressed',String(sound));syncAudio();};
-function reset(){cockpit.reset();world.setTime(0);$('results').classList.add('hidden');$('results').classList.remove('is-triumph');quipDriver=-1;$('race-message').textContent='';raceTime=0;keys.clear();cars.forEach((c,i)=>{// Half a car length of stagger inside each row, so the standings read P1..P4.
- const slot=gridSlot(i),t=startT-.022-Math.floor(slot/2)*.026-(slot%2)*.003,p=at(t,slot%2?2:-2),d=world.curve.getTangentAt((t+1)%1);Object.assign(c,{x:p.x,z:p.z,vx:0,vz:0,angle:Math.atan2(d.x,d.z),t:(t+1)%1,progress:t-startT,nitro:100,air:0,vy:0,jumpCooldown:0,finished:false,finishTime:0,surface:track.surface||'gravel'});});dust.clear();trails.forEach(t=>t.clear());$('race-message').textContent='';syncModels();updateHUD();}
+function reset(){$('tournament-results').hidden=true;$('result-times').hidden=false;$('results').classList.remove('is-championship');cockpit.reset();world.setTime(0);$('results').classList.add('hidden');$('results').classList.remove('is-triumph');quipDriver=-1;$('race-message').textContent='';raceTime=0;keys.clear();cars.forEach((c,i)=>{// Half a car length of stagger inside each row, so the standings read P1..P4.
+ const slot=gridSlot(i),t=startT-.022-Math.floor(slot/2)*.026-(slot%2)*.003,p=at(t,slot%2?2:-2),d=world.curve.getTangentAt((t+1)%1);Object.assign(c,{x:p.x,z:p.z,vx:0,vz:0,angle:Math.atan2(d.x,d.z),t:(t+1)%1,progress:t-startT,nitro:100,air:0,vy:0,jumpCooldown:0,finished:false,finishTime:0,stunt:null,stuntHeight:0,surface:track.surface||'gravel'});});dust.clear();trails.forEach(t=>t.clear());$('race-message').textContent='';syncModels();updateHUD();}
 function start(){if(online){document.querySelector('.online-panel').scrollIntoView({behavior:'smooth',block:'start'});return;}if(sound)enableAudio();soundtrack.beginRace();reset();document.querySelectorAll('.track-card').forEach(b=>b.disabled=true);state='countdown';countdown=3.4;$('overlay').classList.add('hidden');$('status').textContent=pick(MESSAGES.lights);$('pause').textContent='Ⅱ';syncAudio();}
 function togglePause(){if(online){onlineDriving=!onlineDriving;keys.clear();mp.send({type:'active',active:onlineDriving});$('pause').textContent=onlineDriving?'Ⅱ':'▶';$('status').textContent=onlineDriving?'YOU ARE DRIVING':'AI IS DRIVING · PRESS P TO TAKE OVER';return;}if(state==='racing'||state==='countdown'||state==='finishing'){state=state==='racing'?'paused':state==='finishing'?'paused-finishing':'paused-countdown';$('countdown').textContent='PAUSED';$('pause').textContent='▶';}else if(state.startsWith('paused')){state=state==='paused'?'racing':state==='paused-finishing'?'finishing':'countdown';$('countdown').textContent='';$('pause').textContent='Ⅱ';if(sound)enableAudio();}syncAudio();soundtrack.retry();}
 $('start').onclick=start;$('restart').onclick=start;$('pause').onclick=togglePause;
@@ -123,7 +125,7 @@ $('lineup').setAttribute('aria-label',`Starting grid: ${GRID.map((i,slot)=>`P${s
 }
 soloLineup();
 updateDrivers();
-$('replay').onclick=()=>online?mp.send({type:'lobby'}):start();
+$('replay').onclick=()=>online?mp.send({type:online.tournament?.complete?'lobby':'next'}):start();
 $('next-track').onclick=()=>online?mp.send({type:'lobby'}):selectTrack(TRACKS[(TRACKS.indexOf(track)+1)%TRACKS.length].id);
 addEventListener('keydown',e=>{if(e.target.closest('input,select,textarea'))return;if(['ArrowUp','ArrowDown','ArrowLeft','ArrowRight','Space'].includes(e.code))e.preventDefault();keys.add(e.code);if(e.repeat)return;if(e.code==='Enter'&&(state==='ready'||state==='finished'||state==='finishing'))start();if(e.code==='KeyP'||e.code==='Escape')togglePause();if(e.code==='KeyR')start();if(e.code==='KeyC')toggleView();});
 addEventListener('keyup',e=>keys.delete(e.code));
@@ -136,7 +138,8 @@ for(const b of document.querySelectorAll('#touch button')){b.onpointerdown=e=>{e
 // boosting and landing all cost extra dust.
 const dustDebt=cars.map(()=>0);
 function kickUpDust(c,dt,speed,slip,fx,fz,surface,boosting){
- const density=dustDensity(c.surface),ground=(track.banking||track.hills)?world.roadFrame(c.x,c.z,c.t).height:0;
+ if(c.stunt)return;
+ const density=dustDensity(c.surface),ground=(track.banking||track.hills||track.stuntPark)?world.roadFrame(c.x,c.z,c.t).height:0;
  // Airborne cars kick up nothing until they land, and then all at once.
  if(c.air>.25){c.landing=density>=.05;return;}
  if(c.landing){c.landing=false;
@@ -172,7 +175,7 @@ function step(dt){
   if(c.progress>=3&&!c.finished){c.finished=true;c.finishTime=raceTime;if(c.i===player)finish();}
   const slip=Math.abs(c.vx*fz-c.vz*fx);
   // A sliding or boosting car scrubs a heavier mark than one just rolling.
-  if(speed>2.5&&c.air<.2)trails[c.i].sample(c.x-fx*1.2,c.z-fz*1.2,c.angle,c.surface,Math.min(.85,.3+slip*.06+(controls.boost&&c.nitro>0?.15:0)),(track.banking||track.hills)?(x,z)=>world.roadFrame(x,z).height:undefined);
+  if(speed>2.5&&c.air<.2&&!c.stunt)trails[c.i].sample(c.x-fx*1.2,c.z-fz*1.2,c.angle,c.surface,Math.min(.85,.3+slip*.06+(controls.boost&&c.nitro>0?.15:0)),(track.banking||track.hills||track.stuntPark)?(x,z)=>world.roadFrame(x,z).height:undefined);
   kickUpDust(c,dt,speed,slip,fx,fz,surface,controls.boost&&c.nitro>0);
  }
  collideCars(cars);
@@ -198,7 +201,12 @@ function renderResults(){
  if(rows!==resultRows){$('result-times').innerHTML=rows;resultRows=rows;}
  const last=driverIndex(ordered[3]);
  if(last!==quipDriver){quipDriver=last;quipLine=`P4 · ${DRIVERS[last].name}: ${pick(DRIVERS[last].quips)}`;}
- $('results-quip').textContent=online?(state==='finishing'?'Waiting for the rest of the field…':'The host can take everyone back to the lobby.'):state==='finishing'?graceLine:quipLine;
+ $('results-quip').textContent=online?(state==='finishing'?'Waiting for the rest of the field…':(online.tournament?.complete?'The cup is decided. Ready for a rematch?':'Points are banked. The host starts the next round.')):state==='finishing'?graceLine:quipLine;
+ if(online&&state==='finished'){
+  const crowned=$('results').classList.contains('is-championship');
+  renderTournament(online.tournament,{player,driver:i=>driverFor(cars[i]),portrait:seatPortrait});
+  if(online.tournament?.complete&&!crowned){soundtrack.finale(online.tournament.standings[0].seat===player);$('results').querySelector('.confetti').innerHTML=Array.from({length:60},(_,i)=>`<i style="--x:${i*43%100}%;--delay:${i*.055}s;--color:${['#f5ce72','#fff3cc','#9ece6a'][i%3]}"></i>`).join('');}
+ }
 }
 function finish(){
  state='finishing';const rank=position(),time=cars[player].finishTime;
@@ -212,7 +220,7 @@ function finish(){
  $('results-title').textContent=online?(cars[player].finished?`FINISHED · P${rank}`:`FLAGGED OFF · P${rank}`):resultTitle(rank,beatAce);
  $('results-summary').textContent=online?(cars[player].finished?`${formatTime(time)} · ONLINE RACE`:'DNF · THE FLAG WAS OUT'):`${formatTime(time)} · PERSONAL BEST ${formatTime(best)}`;
  $('results').classList.toggle('is-triumph',beatAce);
- soundtrack.finale(beatAce);
+ if(!online)soundtrack.finale(beatAce);
  resultOrder='';resultRows='';renderResults();
  const flakes=beatAce?46:24,palette=beatAce?['#9ece6a','#e9b85d','#f4efdb','#7fd6a2']:colors;
  $('results').querySelector('.confetti').innerHTML=Array.from({length:flakes},(_,i)=>`<i style="--x:${(i*43)%100}%;--delay:${i*(beatAce?.07:.13)}s;--color:${palette[i%palette.length]}"></i>`).join('');
@@ -231,7 +239,7 @@ function onlineRoom(room,slot){
   $('overlay').querySelector('small').textContent='READY UP ABOVE · ARROW KEYS / WASD TO DRIVE';
  }
  $('restart').disabled=true;$('pause').disabled=room.phase==='lobby'||room.phase==='finished';
- $('replay').textContent='BACK TO LOBBY ↑';$('replay').disabled=room.host!==player;
+ $('replay').textContent=room.tournament?.complete?'NEW TOURNAMENT ↑':'NEXT ROUND ↗';$('replay').disabled=room.host!==player||room.phase!=='finished';
  $('next-track').hidden=true;
  document.querySelectorAll('.track-card').forEach(b=>b.disabled=room.phase!=='lobby'||room.host!==player);
  updateDrivers();
@@ -240,6 +248,8 @@ function onlineRoom(room,slot){
 }
 function receiveSnapshot(s){
  if(!online||s.race<onlineRace)return;
+ if(s.track!==track.id)selectTrack(s.track);
+ online.tournament=s.tournament;
  if(s.race!==onlineRace){
   onlineRace=s.race;inputSequence=0;pendingInputs=[];onlineResultShown=false;onlineDriving=true;
   reset();soundtrack.beginRace();$('overlay').classList.add('hidden');
@@ -247,26 +257,26 @@ function receiveSnapshot(s){
  }
  raceTime=s.time;world.setTime(s.time);networkTargets=s.cars;
  pendingInputs=pendingInputs.filter(p=>p.seq>s.acks[player]);
- Object.assign(cars[player],s.cars[player]);
+ Object.assign(cars[player],s.cars[player],{stunt:s.cars[player].stunt?{...s.cars[player].stunt}:null});
  if(s.phase==='racing'&&!s.cars[player].finished){
   // Replay against disposable peer states, never mutate the server snapshot.
-  const replay=s.cars.map((c,i)=>i===player?cars[player]:{...c});
+  const replay=s.cars.map((c,i)=>i===player?cars[player]:{...c,stunt:c.stunt?{...c.stunt}:null});
   for(const [i,p] of pendingInputs.entries()){
    world.setTime(s.time+(i+1)/60);driveCar(cars[player],world,track,1/60,p.control);
-   for(const c of replay)if(c.i!==player&&!c.finished){c.x+=c.vx/60;c.z+=c.vz/60;}
+   for(const c of replay)if(c.i!==player&&!c.finished){if(c.stunt)driveCar(c,world,track,1/60,{throttle:1});else{c.x+=c.vx/60;c.z+=c.vz/60;}}
    collideCars(replay);
   }
  }
  for(let i=0;i<4;i++)if(i!==player){
   const c=cars[i],target=s.cars[i];
-  if(s.phase!=='racing'||Math.hypot(c.x-target.x,c.z-target.z)>8)Object.assign(c,target);
-  else{const {x,z,angle,air,...rest}=target;Object.assign(c,rest);}
+  if(s.phase!=='racing'||Math.hypot(c.x-target.x,c.z-target.z)>8)Object.assign(c,target,{stunt:target.stunt?{...target.stunt}:null});
+  else{const {x,z,angle,air,...rest}=target;Object.assign(c,rest,{stunt:target.stunt?{...target.stunt}:null});}
  }
  state=s.phase==='countdown'?'countdown':s.phase==='finished'?'finished':s.cars[player].finished?'finishing':'racing';
  $('countdown').textContent=s.phase==='countdown'?(s.countdown>.4?String(Math.ceil(s.countdown-.4)):'GO!'):'';
  $('status').textContent=s.phase==='countdown'?'EVERYONE ON THE GRID':s.phase==='finished'?'RACE COMPLETE':(onlineDriving?`ONLINE · YOU ARE ${driverFor(cars[player]).name.toUpperCase()}`:'AI IS DRIVING · PRESS P TO TAKE OVER');
  if((s.cars[player].finished||s.phase==='finished')&&!onlineResultShown){onlineResultShown=true;finish();}
- if(s.phase==='finished'){state='finished';renderResults();}
+ if(s.phase==='finished'){state='finished';$('replay').disabled=online.host!==player;$('replay').textContent=s.tournament.complete?'NEW TOURNAMENT ↑':'NEXT ROUND ↗';renderResults();}
  else if(onlineResultShown)renderResults();
  syncAudio();
 }
@@ -289,7 +299,7 @@ function stepOnline(dt){
  collideCars(cars);
  for(const c of cars){
   const speed=Math.hypot(c.vx,c.vz),fx=Math.sin(c.angle),fz=Math.cos(c.angle),slip=Math.abs(c.vx*fz-c.vz*fx);
-  if(speed>2.5&&c.air<.2)trails[c.i].sample(c.x-fx*1.2,c.z-fz*1.2,c.angle,c.surface,Math.min(.85,.3+slip*.06),(track.banking||track.hills)?(x,z)=>world.roadFrame(x,z).height:undefined);
+  if(speed>2.5&&c.air<.2&&!c.stunt)trails[c.i].sample(c.x-fx*1.2,c.z-fz*1.2,c.angle,c.surface,Math.min(.85,.3+slip*.06),(track.banking||track.hills||track.stuntPark)?(x,z)=>world.roadFrame(x,z).height:undefined);
   kickUpDust(c,dt,speed,slip,fx,fz,SURFACES[c.surface]||SURFACES.gravel,false);
  }
  for(const t of trails)t.fade(dt);dust.update(dt);
@@ -304,7 +314,8 @@ const roadPose=new THREE.Matrix4(),roadForward=new THREE.Vector3(),roadRight=new
 function syncModels(){
  for(const c of cars){
   c.updateWheels(c,raceTime);
-  if(track.banking||track.hills){
+  if(c.stunt){const pose=loopCarPose(world,track,c.stunt);c.g.position.copy(pose.position);c.g.quaternion.copy(pose.quaternion);if(c.stunt.facing<0)c.g.rotateY(Math.PI);}
+  else if(track.banking||track.hills||track.stuntPark){
    const frame=world.roadFrame(c.x,c.z,c.t);
    c.g.position.set(c.x,frame.height+c.air,c.z);
    roadForward.set(Math.sin(c.angle),0,Math.cos(c.angle));
@@ -317,7 +328,7 @@ function syncModels(){
  }
  marker.position.set(cars[player].x,cars[player].g.position.y+3.3,cars[player].z);
 }
-function updateHUD(){if(state==='racing')$('race-message').textContent=cars[player].surface&&cars[player].surface!==(track.surface||'gravel')?SURFACES[cars[player].surface].label:'';$('position').innerHTML=`0${position()}<span>/ 04</span>`;$('lap').innerHTML=`0${Math.min(3,Math.floor(Math.max(0,cars[player].progress))+1)}<span>/ 03</span>`;$('time').textContent=formatTime(cars[player].finished?cars[player].finishTime:raceTime);$('speed').textContent=Math.round(Math.hypot(cars[player].vx,cars[player].vz)*5);$('nitro-fill').style.width=`${cars[player].nitro}%`;}
+function updateHUD(){if(state==='racing')$('race-message').textContent=cars[player].stunt?cars[player].stunt.guidance||'LOOP · FOLLOW THE YELLOW LINE':cars[player].surface&&cars[player].surface!==(track.surface||'gravel')?SURFACES[cars[player].surface].label:'';$('position').innerHTML=`0${position()}<span>/ 04</span>`;$('lap').innerHTML=`0${Math.min(3,Math.floor(Math.max(0,cars[player].progress))+1)}<span>/ 03</span>`;$('time').textContent=formatTime(cars[player].finished?cars[player].finishTime:raceTime);$('speed').textContent=Math.round(Math.hypot(cars[player].vx,cars[player].vz)*5);$('nitro-fill').style.width=`${cars[player].nitro}%`;}
 function resize(){
  const w=viewport.clientWidth,h=viewport.clientHeight;if(!w||!h)return;
  const aspect=w/h,bounds=new THREE.Box3(),point=new THREE.Vector3();
@@ -329,7 +340,7 @@ function resize(){
    for(const dx of [-margin,margin])for(const dz of [-margin,margin])for(const y of [0,5])include(p.x+dx,y,p.z+dz);
  }
  for(const dx of [-10,10])for(const y of [0,6])include(track.banner[0]+dx,y,track.banner[1]);
- if(track.banking||track.hills)for(let i=0;i<120;i++)for(const lane of [-track.width/2-1,track.width/2+1]){
+ if(track.banking||track.hills||track.stuntPark)for(let i=0;i<120;i++)for(const lane of [-track.width/2-1,track.width/2+1]){
   const p=world.at(i/120,lane);include(p.x,p.y+4,p.z);
  }
  for(const p of world.framingPoints)include(p.x,p.y,p.z);

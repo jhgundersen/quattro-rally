@@ -1,9 +1,12 @@
+import {drawbridgeState,collideDrawbridges} from './drawbridges.js';
+import {driveLoop,inLoop,loopSteering} from './stunt-motion.js';
 import {wrap,advanceProgress} from './race.js';
 import {crossingBlocked,collideTrain} from './trains.js';
 import {SURFACES,surfaceAt,collideObstacle} from './tracks.js';
 const clamp=(v,a,b)=>Math.max(a,Math.min(b,v));
 
 export function aiControls(c,world,track,cars=[]) {
+  if(c.stunt)return {throttle:1,steer:loopSteering(c,track),boost:c.nitro>35,brake:false};
   const near=world.nearest(c.x,c.z,c.t),speed=Math.hypot(c.vx,c.vz);
   // Skill above 1 is the locked ace: a racing line, later braking, freer nitro.
   const skill=c.skill||1;
@@ -62,6 +65,16 @@ export function aiControls(c,world,track,cars=[]) {
       if(distance<8)waitForTrain=true;
     }
   }
+  for(const bridge of track.drawbridges||[]){
+    const distance=((bridge.t-near.t+1)%1)*world.length-(bridge.length||9)/2;
+    if(distance>0&&distance<Math.max(25,speed*speed/18+8)){
+      const arrival=Math.max(0,distance-3)/Math.max(speed,5);
+      if(drawbridgeState(bridge,world.traffic.time).blocked||drawbridgeState(bridge,world.traffic.time+arrival).blocked){
+        desired=Math.min(desired,Math.sqrt(2*9*Math.max(0,distance-4)));
+        if(distance<6)waitForTrain=true;
+      }
+    }
+  }
   return {
     throttle:waitForTrain?(speed>1?-1.2:0):speed>desired+1?-.8:speed>desired?0:1,
     steer:clamp(error*2.6,-1,1),
@@ -71,6 +84,7 @@ export function aiControls(c,world,track,cars=[]) {
 }
 
 export function driveCar(c,world,track,dt,controls) {
+  if(c.stunt)return driveLoop(c,world,track,dt,controls);
   const near=world.nearest(c.x,c.z,c.t);
   c.surface=surfaceAt(c.x,c.z,c.air,world.patches,track.surface);
   const surface=SURFACES[c.surface];
@@ -89,13 +103,14 @@ export function driveCar(c,world,track,dt,controls) {
   c.vx+=(fx*acceleration-c.vx*drag-side*fz*grip)*dt;
   c.vz+=(fz*acceleration-c.vz*drag+side*fx*grip)*dt;
   if(near.distance>track.width/2){c.vx*=Math.exp(-1.8*dt);c.vz*=Math.exp(-1.8*dt);}
-  if((track.banking||track.hills)&&c.air<.1){
+  if((track.banking||track.hills||track.stuntPark)&&c.air<.1){
     // Gravity projected onto the sloped road pulls toward the lower lane.
     const {normal}=world.roadFrame(c.x,c.z,c.t);
     c.vx+=9.81*normal.y*normal.x*dt;c.vz+=9.81*normal.y*normal.z*dt;
   }
   c.x+=c.vx*dt;c.z+=c.vz*dt;
   for(const train of world.traffic?.trains||[])collideTrain(c,train);
+  collideDrawbridges(c,world,track);
   const edge=track.width/2+.9;
   const boundary=world.nearest(c.x,c.z,c.t);
   if(boundary.distance>edge){
@@ -111,6 +126,13 @@ export function driveCar(c,world,track,dt,controls) {
   c.vy-=16*dt;c.air=Math.max(0,c.air+c.vy*dt);if(c.air===0)c.vy=Math.max(0,c.vy);
   for(const o of world.obstacles)collideObstacle(c,o);
   const next=world.nearest(c.x,c.z,c.t).t;
+  if(track.loop&&inLoop(track,next)&&!inLoop(track,c.t)){
+    const direction=c.t>track.loop.end?-1:1,entryT=direction<0?track.loop.end:track.loop.start;
+    const entry=world.at(entryT),dir=world.curve.getTangentAt(entryT),facing=Math.sin(c.angle)*dir.x+Math.cos(c.angle)*dir.z<0?-1:1;
+    c.stunt={u:direction<0?1:0,direction,facing,lane:clamp(-(c.x-entry.x)*dir.z+(c.z-entry.z)*dir.x,-track.width/2+1.3,track.width/2-1.3),speed:Math.max(8,Math.hypot(c.vx,c.vz))};
+    c.progress=advanceProgress(c.t,entryT,c.progress);c.t=entryT;
+    return driveLoop(c,world,track,dt,controls);
+  }
   c.progress=advanceProgress(c.t,next,c.progress);c.t=next;
   return {speed,fx,fz,surface};
 }
@@ -118,7 +140,7 @@ export function driveCar(c,world,track,dt,controls) {
 // Match the visible body and tyre footprint instead of a small center circle.
 const CAR_HALF_WIDTH=1.17,CAR_HALF_LENGTH=1.94;
 export function carContact(a,b){
-  if(Math.abs((a.air||0)-(b.air||0))>1)return null;
+  if(Math.abs((a.air||0)+(a.stuntHeight||0)-(b.air||0)-(b.stuntHeight||0))>1)return null;
   const dx=b.x-a.x,dz=b.z-a.z;
   if(dx*dx+dz*dz>21)return null;
   const af={x:Math.sin(a.angle),z:Math.cos(a.angle)},ar={x:af.z,z:-af.x};
@@ -139,6 +161,8 @@ export function collideCars(cars){
     const a=cars[i],b=cars[j],contact=carContact(a,b);if(!contact)continue;
     const {nx,nz,depth}=contact,push=(depth+.002)*.5;
     a.x-=nx*push;a.z-=nz*push;b.x+=nx*push;b.z+=nz*push;
+    if(a.stunt)a.stunt.lane+=nx*push*Math.cos(a.angle)-nz*push*Math.sin(a.angle);
+    if(b.stunt)b.stunt.lane-=nx*push*Math.cos(b.angle)-nz*push*Math.sin(b.angle);
     const closing=(a.vx-b.vx)*nx+(a.vz-b.vz)*nz;
     if(closing>0){
       // Equal mass, a small bounce, and limited side friction: doors rub

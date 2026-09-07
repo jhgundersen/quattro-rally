@@ -26,7 +26,7 @@ for(const track of TRACKS) {
       collideCars(cars);
     }
     assert.ok(cars.every(c=>c.finished),`stalled drivers: ${cars.map(c=>c.progress.toFixed(2)).join(', ')}`);
-    const paceLimits={gravel:58,forest:82,desert:71,alpine:65,garage:74,bog:140,lemans:85,daytona:75,stavanger:95,railyard:140};
+    const paceLimits={gravel:58,forest:82,desert:71,alpine:65,garage:74,bog:140,lemans:85,daytona:75,stavanger:95,railyard:140,stunts:140};
     assert.ok(Math.max(...cars.map(c=>c.finishTime))<paceLimits[track.id],'rivals maintain competitive three-lap pace');
     if(track.jumps.length)assert.ok(highestJump>.6,'drivers reach the jump sections');
     else assert.equal(highestJump,0,'flat circuits keep cars grounded');

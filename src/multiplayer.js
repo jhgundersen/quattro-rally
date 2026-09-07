@@ -1,7 +1,7 @@
 import {TRACKS} from './tracks.js';
 import {DRIVERS,FACES,portrait,cleanFace} from './drivers.js';
 const $=id=>document.getElementById(id);
-const VERSION=1;
+const VERSION=2;
 export function createMultiplayer({onRoom,onSnapshot,onLeave,onSeat,onStatus,getTrack,onActivate}){
  let socket,room=null,slot=0,retry=0,timer,closed=true,connecting=false;
  let invite=new URL(location.href).searchParams.get('room')||'',seatToken='';
@@ -57,14 +57,22 @@ export function createMultiplayer({onRoom,onSnapshot,onLeave,onSeat,onStatus,get
    avatar.innerHTML=portrait(faceOf(i),{color:driver.color,trim:driver.trim,name:member?member.name:driver.name});
    const text=document.createElement('div');
    const name=document.createElement('strong');name.textContent=member?`${member.name}${i===slot?' · YOU':''}`:`${driver.name} · AI`;
-   const label=document.createElement('span');label.textContent=member?`${i===room.host?'HOST · ':''}${!member.connected?'RECONNECTING · AI DRIVING':lobby?(member.ready?'READY':'NOT READY'):'RACING'}`:'Fills an empty seat';
+   const label=document.createElement('span');label.textContent=member?`${i===room.host?'HOST · ':''}${!member.connected?'RECONNECTING · AI DRIVING':lobby?(member.ready?'READY':'NOT READY'):room.phase==='finished'?'ROUND COMPLETE':'RACING'}`:'Fills an empty seat';
    text.append(name,label);li.append(avatar,text);return li;
   }));
-  $('online-track').value=room.track;$('online-track').disabled=!host||!lobby;
+  const schedule=room.tournament?.tracks||[room.track];
+  $('online-tracks').replaceChildren(...TRACKS.map(track=>{
+   const button=document.createElement('button'),order=schedule.indexOf(track.id);button.type='button';button.className='tournament-track';
+   button.textContent=`${order<0?'+':order+1} · ${track.name}`;button.setAttribute('aria-pressed',String(order>=0));
+   button.disabled=!host||!lobby||(order<0&&schedule.length>=5)||(order>=0&&schedule.length===1);
+   button.onclick=()=>send({type:'tracks',tracks:order<0?[...schedule,track.id]:schedule.filter(id=>id!==track.id)});return button;
+  }));
+  $('online-schedule').textContent=schedule.map((id,i)=>`${i+1}. ${TRACKS.find(t=>t.id===id).name}`).join(' → ');
+  $('online-round').textContent=lobby?`${schedule.length} ROUND${schedule.length===1?'':'S'} · SELECT IN RACE ORDER`:`ROUND ${room.tournament.round+1} OF ${schedule.length}`;
   $('online-ready').hidden=!lobby;$('online-ready').textContent=room.players[slot]?.ready?'NOT READY':'I’M READY';
   $('online-start').hidden=!host||!lobby;$('online-start').disabled=!room.players.filter(p=>p?.connected).every(p=>p.ready);
-  $('online-back').hidden=!host||room.phase!=='finished';
-  $('online-hint').textContent=lobby?(host?'Choose a track, share the link, and start when everyone is ready.':'The host chooses the track and starts the race.'):room.phase==='finished'?'Race complete. The host can bring everyone back to the lobby.':'Race in progress. Switching tabs lets AI drive until you return.';
+  $('online-back').hidden=!host||room.phase!=='finished';$('online-back').textContent=room.tournament?.complete?'BACK TO LOBBY':'NEXT ROUND ↗';
+  $('online-hint').textContent=lobby?(host?'Select 1–5 tracks in race order, share the link, then ready up. Changing tracks resets readiness.':'The host selects the tournament tracks and starts when everyone is ready.'):room.phase==='finished'?(room.tournament?.complete?'Tournament complete. The host can set up another championship.':'Round complete. The host starts the next round when everyone is ready to continue.'):'Race in progress. Switching tabs lets AI drive until you return.';
  }
  function connect(){
   clearTimeout(timer);closed=false;connecting=true;render();status(retry?'Reconnecting… Your car is in AI hands.':'Connecting to the lobby…');
@@ -101,14 +109,12 @@ export function createMultiplayer({onRoom,onSnapshot,onLeave,onSeat,onStatus,get
   const url=new URL(location.href);url.searchParams.delete('room');history.replaceState(null,'',url);
   status('Create a room and send its link to friends. No account needed.');render();onLeave();
  }
- $('online-track').replaceChildren(...TRACKS.map(track=>{const option=document.createElement('option');option.value=track.id;option.textContent=track.name;return option;}));
  $('online-create').onclick=()=>{onActivate();invite='';seatToken='';connect();};
  $('online-join').onclick=()=>{onActivate();connect();};
  $('online-cancel').onclick=leave;$('online-leave').onclick=leave;
  $('online-ready').onclick=()=>{onActivate();send({type:'ready',ready:!room.players[slot]?.ready});};
  $('online-start').onclick=()=>{onActivate();send({type:'start'});};
- $('online-track').onchange=()=>send({type:'track',track:$('online-track').value});
- $('online-back').onclick=()=>send({type:'lobby'});
+ $('online-back').onclick=()=>{onActivate();send({type:room.tournament?.complete?'lobby':'next'});};
  $('online-copy').onclick=async()=>{try{await navigator.clipboard.writeText($('online-link').value);status('Invite link copied. Send it to your friends.');}catch{$('online-link').focus();$('online-link').select();status('Copy the selected invite link.');}};
  $('online-link').onclick=()=>{$('online-link').select();};
  $('chat-form').onsubmit=event=>{

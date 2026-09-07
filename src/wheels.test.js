@@ -16,3 +16,8 @@ test('front steering follows bends, handles heading wrap and ignores resets',()=
  car.x=40;assert.deepEqual(update(car,.2),{spin:0,steer:0});
  car.z=20;assert.deepEqual(update(car,0),{spin:0,steer:0});
 });
+
+test('loop wheels keep rolling forward while the car travels upside down',()=>{
+ const update=createWheelMotion(),car={x:0,z:0,angle:0,stunt:{speed:10,direction:1,facing:1}};update(car,0);
+ car.z=-.3;assert.ok(update(car,.05).spin>0);
+});

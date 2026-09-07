@@ -30,6 +30,7 @@ export function createCourse(track) {
   const tangents = Array.from({length:count}, (_,i) => curve.getTangentAt(i/count));
   const smooth=(a,b,v)=>{const u=Math.max(0,Math.min(1,(v-a)/(b-a)));return u*u*(3-2*u);};
   function bankAngle(t) {
+    if(track.stuntPark)return Math.sin(Math.PI*smooth(.51,.63,t))*.42;
     if(!track.banking)return 0;
     const p=curve.getPointAt((t%1+1)%1),x=p.x*tc+p.z*ts,z=p.z*tc-p.x*ts;
     const straight=6+12*smooth(-4,20,z);
@@ -41,6 +42,7 @@ export function createCourse(track) {
     return track.hills ? .18+7.8*Math.exp(-(((x+18)/30)**2+((z+15)/28)**2)) : 0;
   }
   function roadHeight(t,lane=0) {
+    if(track.stuntPark)return 5*smooth(.57,.61,t)*(1-smooth(.68,.73,t))+(track.width/2-lane)*Math.tan(bankAngle(t));
     if(track.hills){const p=curve.getPointAt((t%1+1)%1),d=curve.getTangentAt((t%1+1)%1);return terrainHeight(p.x-d.z*lane,p.z+d.x*lane);}
     return track.banking ? .2+(track.width/2+1.5-lane)*Math.tan(bankAngle(t)) : 0;
   }
@@ -67,7 +69,7 @@ export function createCourse(track) {
       const dz=(terrainHeight(x,z+.3)-terrainHeight(x,z-.3))/.6;
       return {height:terrainHeight(x,z),normal:new THREE.Vector3(-dx,1,-dz).normalize(),bank:0};
     }
-    if(!track.banking)return {height:0,normal:new THREE.Vector3(0,1,0),bank:0};
+    if(!track.banking&&!track.stuntPark)return {height:0,normal:new THREE.Vector3(0,1,0),bank:0};
     const near=nearest(x,z,previous),dx=x-near.point.x,dz=z-near.point.z;
     const t=(near.t+(dx*near.dir.x+dz*near.dir.z)/length+1)%1;
     const lane=-dx*near.dir.z+dz*near.dir.x,bank=bankAngle(t);
@@ -92,7 +94,7 @@ export function createCourse(track) {
     }
   }
   const traffic={time:0,trains:trainCars(track,0)};
-  function setTime(time){if(!track.rails)return;traffic.time=time;traffic.trains=trainCars(track,time);}
+  function setTime(time){if(!track.rails&&!track.drawbridges)return;traffic.time=time;if(track.rails)traffic.trains=trainCars(track,time);}
   return {curve,length,points,tangents,at,nearest,bankAngle,roadHeight,roadFrame,terrainHeight,patches,obstacles,railCrossings,traffic,setTime};
 }
 

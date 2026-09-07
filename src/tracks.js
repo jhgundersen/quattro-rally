@@ -71,6 +71,13 @@ export const TRACKS = [
     tip:'Weave around the old depot and watch the crossing lights. Brake for the freight trains, then boost through the gap.',
     points:[[-43,24],[-46,8],[-46,-22],[-35,-29],[-17,-29],[-9,-20],[-12,-8],[-4,0],[9,-5],[10,-19],[21,-29],[36,-26],[45,-14],[43,9],[34,27],[19,29],[11,19],[2,12],[-10,19],[-20,28],[-34,29]],
     rails:[{z:-10,speed:8,phase:36},{z:9,speed:-7,phase:128}], jumps:[], patches:[], obstacles:[] },
+  { id:'stunts', name:'DOS Descent', biome:'STUNT PARK', difficulty:4, rating:'EXPERT', width:8.5, aiSpeed:20, seed:1990,
+    layout:'LOOP / PIPE / SKYWAY', revision:2, surface:'asphalt', stuntPark:true, accent:'#d8dce4', landmark:[-3,12], banner:[-20,36],
+    ground:'#718c43', road:'#71777d', rut:'#696f75', edge:'#e6e8d5', foliage:'#315d35', rock:'#889393', sky:'#82b6da', sun:'#fff2d1',
+    description:'A salute to Stunts / 4D Sports: Driving. Charge the loop, thread the pipe, ride the skyway and launch the jump. Follow the shifting yellow line through the loop and wait for green lights at the drawbridges.',
+    tip:'Steer through the offset loop, time two drawbridges, thread the pipe and climb the skyway — a salute to Stunts / 4D Sports: Driving.',
+    points:[[-46,25],[-48,0],[-48,-28],[-22,-30],[8,-30],[40,-30],[48,-12],[48,20],[30,29],[14,23],[9,9],[20,-1],[14,-10],[-4,-10],[-16,-2],[-10,10],[-20,24],[-34,27]],
+    loop:{start:.22,end:.24,radius:8,shift:6}, pipe:{start:.43,end:.50}, drawbridges:[{t:.10,length:9,phase:0},{t:.32,length:9,phase:15}], jumps:[.79], patches:[], obstacles:[] },
 ];
 export function surfaceAt(x,z,air,patches,base='gravel') {
   if(air>.4)return base;
