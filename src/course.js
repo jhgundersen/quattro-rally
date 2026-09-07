@@ -34,7 +34,13 @@ export function createCourse(track) {
     const straight=6+12*smooth(-4,20,z);
     return (straight+(31-straight)*smooth(22,40,Math.abs(x)))*Math.PI/180;
   }
+  // A spatial hillside keeps the road, gardens and house foundations on the
+  // same continuous ground. It flattens towards the harbour on the east.
+  function terrainHeight(x,z) {
+    return track.hills ? .18+7.8*Math.exp(-(((x+18)/30)**2+((z+15)/28)**2)) : 0;
+  }
   function roadHeight(t,lane=0) {
+    if(track.hills){const p=curve.getPointAt((t%1+1)%1),d=curve.getTangentAt((t%1+1)%1);return terrainHeight(p.x-d.z*lane,p.z+d.x*lane);}
     return track.banking ? .2+(track.width/2+1.5-lane)*Math.tan(bankAngle(t)) : 0;
   }
   function at(t,lane=0) {
@@ -55,6 +61,11 @@ export function createCourse(track) {
     return {idx,t:idx/count,distance:Math.sqrt(min),point:points[idx],dir:tangents[idx]};
   }
   function roadFrame(x,z,previous) {
+    if(track.hills){
+      const dx=(terrainHeight(x+.3,z)-terrainHeight(x-.3,z))/.6;
+      const dz=(terrainHeight(x,z+.3)-terrainHeight(x,z-.3))/.6;
+      return {height:terrainHeight(x,z),normal:new THREE.Vector3(-dx,1,-dz).normalize(),bank:0};
+    }
     if(!track.banking)return {height:0,normal:new THREE.Vector3(0,1,0),bank:0};
     const near=nearest(x,z,previous),dx=x-near.point.x,dz=z-near.point.z;
     const t=(near.t+(dx*near.dir.x+dz*near.dir.z)/length+1)%1;
@@ -71,7 +82,7 @@ export function createCourse(track) {
     const p=at(o.t,o.lane);
     return {...o,x:p.x,z:p.z,height:o.type==='tree'?4:o.type==='log'?1:1.3};
   });
-  return {curve,length,points,tangents,at,nearest,bankAngle,roadHeight,roadFrame,patches,obstacles};
+  return {curve,length,points,tangents,at,nearest,bankAngle,roadHeight,roadFrame,terrainHeight,patches,obstacles};
 }
 
 export function coursePreview(track) {

@@ -8,6 +8,7 @@ export const SURFACES = {
   water: { grip: 2, drag: 2.1, power: .65, color: '#a2d8db', label: 'WATER · SHALLOW FORD' },
   ice: { grip: 1.05, drag: .38, power: .82, color: '#e4f4fa', label: 'ICE · EASY ON THE STEERING' },
   sand: { grip: 3.5, drag: 1.05, power: .85, color: '#e9c589', label: 'DEEP SAND' },
+  cobble: { grip: 5.2, drag: .56, power: .97, color: '#9a978d', label: 'COBBLES · OLD TOWN' },
 };
 export const TRACKS = [
   { id:'gravel', name:'The Gravel Pit', biome:'QUARRY', difficulty:1, rating:'ROOKIE', width:10.2, aiSpeed:16, seed:41,
@@ -57,6 +58,12 @@ export const TRACKS = [
     ground:'#668b5d', road:'#525b62', rut:'#4b5359', edge:'#f1ede0', rock:'#abb3ae', sky:'#89b7cb', sun:'#fff2d2', foliage:'#487850', bank:'#55704a',
     tip:'Ride the 31° high banks, hold your line through the tri-oval, and save nitro for the long backstretch.',
     points:[[0,33],[-23,29],[-43,19],[-51,1],[-45,-20],[-28,-28],[0,-28],[28,-28],[45,-20],[51,1],[43,19],[23,29]],
+    jumps:[], patches:[], obstacles:[] },
+  { id:'stavanger', name:'Stavanger', biome:'HARBOUR CITY', difficulty:4, rating:'EXPERT', width:7.6, aiSpeed:19.5, seed:718,
+    layout:'OLD TOWN HILLCLIMB', accent:'#d9c6a5', revision:2, surface:'cobble', hills:true, landmark:[55,12], banner:[-12,-39],
+    ground:'#81917a', road:'#aaa69c', rut:'#aaa69c', edge:'#e6dfcd', rock:'#7e8581', sky:'#9aafb4', sun:'#fff0d8', foliage:'#597450',
+    tip:'Climb the cobbles through Gamle Stavanger, brake for the garden hairpin, then chase the harbour downhill. Save nitro for the climb.',
+    points:[[-44,22],[-46,0],[-42,-27],[-20,-30],[10,-30],[38,-26],[43,-10],[43,14],[35,27],[20,27],[11,18],[11,5],[20,-5],[13,-14],[0,-14],[-8,-5],[-7,12],[-15,24],[-29,27]],
     jumps:[], patches:[], obstacles:[] },
 ];
 export function surfaceAt(x,z,air,patches,base='gravel') {

@@ -37,7 +37,7 @@ sun.shadow.mapSize.set(2048, 2048); sun.shadow.bias = -0.001; scene.add(sun);
 // ground that read as if the road were floating clear of it.
 function fitShadows(){
  let reach=0;for(const p of world.points)reach=Math.max(reach,Math.hypot(p.x,p.z));
- reach+=track.banking?24:14;
+ reach+=(track.banking||track.hills)?24:14;
  Object.assign(sun.shadow.camera,{left:-reach,right:reach,top:reach,bottom:-reach});
  sun.shadow.camera.updateProjectionMatrix();
 }
@@ -157,7 +157,7 @@ for(const b of document.querySelectorAll('#touch button')){b.onpointerdown=e=>{e
 // boosting and landing all cost extra dust.
 const dustDebt=cars.map(()=>0);
 function kickUpDust(c,dt,speed,slip,fx,fz,surface,boosting){
- const density=dustDensity(c.surface),ground=track.banking?world.roadFrame(c.x,c.z,c.t).height:0;
+ const density=dustDensity(c.surface),ground=(track.banking||track.hills)?world.roadFrame(c.x,c.z,c.t).height:0;
  // Airborne cars kick up nothing until they land, and then all at once.
  if(c.air>.25){c.landing=density>=.05;return;}
  if(c.landing){c.landing=false;
@@ -193,7 +193,7 @@ function step(dt){
   if(c.progress>=3&&!c.finished){c.finished=true;c.finishTime=raceTime;if(c.i===player)finish();}
   const slip=Math.abs(c.vx*fz-c.vz*fx);
   // A sliding or boosting car scrubs a heavier mark than one just rolling.
-  if(speed>2.5&&c.air<.2)trails[c.i].sample(c.x-fx*1.2,c.z-fz*1.2,c.angle,c.surface,Math.min(.85,.3+slip*.06+(controls.boost&&c.nitro>0?.15:0)),track.banking?(x,z)=>world.roadFrame(x,z).height:undefined);
+  if(speed>2.5&&c.air<.2)trails[c.i].sample(c.x-fx*1.2,c.z-fz*1.2,c.angle,c.surface,Math.min(.85,.3+slip*.06+(controls.boost&&c.nitro>0?.15:0)),(track.banking||track.hills)?(x,z)=>world.roadFrame(x,z).height:undefined);
   kickUpDust(c,dt,speed,slip,fx,fz,surface,controls.boost&&c.nitro>0);
  }
  collideCars(cars);
@@ -296,7 +296,7 @@ function stepOnline(dt){
   const target=networkTargets[c.i];
   if(c.i!==player||!active){c.x+=(target.x-c.x)*.35;c.z+=(target.z-c.z)*.35;c.angle+=Math.atan2(Math.sin(target.angle-c.angle),Math.cos(target.angle-c.angle))*.35;c.air+=(target.air-c.air)*.35;}
   const speed=Math.hypot(c.vx,c.vz),fx=Math.sin(c.angle),fz=Math.cos(c.angle),slip=Math.abs(c.vx*fz-c.vz*fx);
-  if(speed>2.5&&c.air<.2)trails[c.i].sample(c.x-fx*1.2,c.z-fz*1.2,c.angle,c.surface,Math.min(.85,.3+slip*.06),track.banking?(x,z)=>world.roadFrame(x,z).height:undefined);
+  if(speed>2.5&&c.air<.2)trails[c.i].sample(c.x-fx*1.2,c.z-fz*1.2,c.angle,c.surface,Math.min(.85,.3+slip*.06),(track.banking||track.hills)?(x,z)=>world.roadFrame(x,z).height:undefined);
   kickUpDust(c,dt,speed,slip,fx,fz,SURFACES[c.surface]||SURFACES.gravel,false);
  }
  for(const t of trails)t.fade(dt);dust.update(dt);
@@ -310,7 +310,7 @@ function leaveOnline(){
 const roadPose=new THREE.Matrix4(),roadForward=new THREE.Vector3(),roadRight=new THREE.Vector3();
 function syncModels(){
  for(const c of cars){
-  if(track.banking){
+  if(track.banking||track.hills){
    const frame=world.roadFrame(c.x,c.z,c.t);
    c.g.position.set(c.x,frame.height+c.air,c.z);
    roadForward.set(Math.sin(c.angle),0,Math.cos(c.angle));
@@ -335,7 +335,7 @@ function resize(){
    for(const dx of [-margin,margin])for(const dz of [-margin,margin])for(const y of [0,5])include(p.x+dx,y,p.z+dz);
  }
  for(const dx of [-10,10])for(const y of [0,6])include(track.banner[0]+dx,y,track.banner[1]);
- if(track.banking)for(let i=0;i<120;i++)for(const lane of [-track.width/2-1,track.width/2+1]){
+ if(track.banking||track.hills)for(let i=0;i<120;i++)for(const lane of [-track.width/2-1,track.width/2+1]){
   const p=world.at(i/120,lane);include(p.x,p.y+4,p.z);
  }
  for(const p of world.framingPoints)include(p.x,p.y,p.z);
