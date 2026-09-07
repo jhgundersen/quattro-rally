@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import {trainCars} from './trains.js';
 
 // A periodic cubic B-spline rounds the control polygon without overshooting it.
 // This keeps the inside of a hairpin smooth, unlike an interpolating spline.
@@ -82,7 +83,17 @@ export function createCourse(track) {
     const p=at(o.t,o.lane);
     return {...o,x:p.x,z:p.z,height:o.type==='tree'?4:o.type==='log'?1:1.3};
   });
-  return {curve,length,points,tangents,at,nearest,bankAngle,roadHeight,roadFrame,terrainHeight,patches,obstacles};
+  const railCrossings=[];
+  for(const [line,rail] of (track.rails||[]).entries())for(let i=0;i<count;i++){
+    const a=points[i],b=points[(i+1)%count];
+    if((a.z<=rail.z&&b.z>rail.z)||(a.z>rail.z&&b.z<=rail.z)){
+      const f=(rail.z-a.z)/(b.z-a.z);
+      railCrossings.push({line,x:a.x+(b.x-a.x)*f,z:rail.z,t:(i+f)/count});
+    }
+  }
+  const traffic={time:0,trains:trainCars(track,0)};
+  function setTime(time){if(!track.rails)return;traffic.time=time;traffic.trains=trainCars(track,time);}
+  return {curve,length,points,tangents,at,nearest,bankAngle,roadHeight,roadFrame,terrainHeight,patches,obstacles,railCrossings,traffic,setTime};
 }
 
 export function coursePreview(track) {

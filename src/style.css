@@ -23,4 +23,9 @@
 @media(max-width:750px){#online-members{grid-template-columns:repeat(2,minmax(0,1fr))}.face-option .portrait{width:44px}#chat-log{height:112px}}
 
 #tracks{grid-template-columns:repeat(3,minmax(0,1fr))}
-@media(max-width:750px){#tracks{grid-template-columns:repeat(2,minmax(0,1fr))}.track-card:last-child{grid-column:span 2}}
+@media(max-width:750px){#tracks{grid-template-columns:repeat(2,minmax(0,1fr))}.track-card:last-child:nth-child(odd){grid-column:span 2}}
+
+#view-toggle{position:absolute;top:16px;right:16px;z-index:5;background:#1d2b29dd;min-height:36px;color:#eed6a4}#cockpit-map{display:none;position:absolute;right:16px;top:62px;width:122px;padding:7px;background:#192a29ce;border:1px solid #81908388;border-radius:3px;z-index:2;pointer-events:none}.is-cockpit #cockpit-map{display:block}#cockpit-map svg{width:100%;height:auto;display:block;margin:0}#cockpit-map path{fill:none;stroke:#b9baa7;stroke-width:5}#cockpit-map circle{fill:#f5ecd3}#cockpit-map .map-car{fill:#efb85e;stroke:#202c27;stroke-width:1.5}.is-cockpit .scene-caption{display:none}
+@media(max-width:750px){#view-toggle{top:12px;right:10px;padding:8px;font-size:8px}#cockpit-map{right:10px;top:57px;width:80px;padding:4px}.is-cockpit .track-label{max-width:180px}#tracks{grid-template-columns:repeat(2,minmax(0,1fr))}}
+
+@media(min-width:1150px){#tracks{grid-template-columns:repeat(5,minmax(0,1fr))}}

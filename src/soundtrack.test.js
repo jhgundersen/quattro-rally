@@ -13,7 +13,7 @@ function audioStub() {
   };
 }
 
-test('playlist starts on a race, advances at song end, and wraps through all three files',()=>{
+test('playlist starts on a race, advances at song end, and wraps through all four files',()=>{
   const audio=audioStub(),music=createSoundtrack(audio);
   assert.equal(audio.src,undefined);
   assert.equal(audio.plays,0);
@@ -22,6 +22,7 @@ test('playlist starts on a race, advances at song end, and wraps through all thr
   assert.equal(audio.paused,false);
   audio.end();assert.equal(audio.src,'/audio/quattro-2.mp3');
   audio.end();assert.equal(audio.src,'/audio/quattro-3.mp3');
+  audio.end();assert.equal(audio.src,'/audio/quattro-4.mp3');
   audio.end();assert.equal(audio.src,'/audio/quattro-1.mp3');
   assert.equal(audio.paused,false);
 });

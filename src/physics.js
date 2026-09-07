@@ -1,4 +1,5 @@
 import {wrap,advanceProgress} from './race.js';
+import {crossingBlocked,collideTrain} from './trains.js';
 import {SURFACES,surfaceAt,collideObstacle} from './tracks.js';
 const clamp=(v,a,b)=>Math.max(a,Math.min(b,v));
 
@@ -49,10 +50,22 @@ export function aiControls(c,world,track,cars=[]) {
   const target=world.at(near.t+lookahead,lane);
   const error=wrap(Math.atan2(target.x-c.x,target.z-c.z)-c.angle);
   desired*=1-Math.min(Math.abs(error)*.12,.3);
+  // Look far enough ahead to stop at a crossing, including a train that will
+  // arrive while this car is crossing. Wait on the approach, not on the rails.
+  let waitForTrain=false;
+  for(const crossing of world.railCrossings||[]){
+    const distance=((crossing.t-near.t+1)%1)*world.length;
+    if(distance<4||distance>Math.max(17,speed*speed/20+7))continue;
+    const arrival=distance/Math.max(speed,5),time=world.traffic.time;
+    if(crossingBlocked(track,crossing,time)||crossingBlocked(track,crossing,time+arrival)||crossingBlocked(track,crossing,time+arrival+.5)){
+      desired=Math.min(desired,Math.sqrt(2*9*Math.max(0,distance-6)));
+      if(distance<8)waitForTrain=true;
+    }
+  }
   return {
-    throttle:speed>desired+1?-.8:speed>desired?0:1,
+    throttle:waitForTrain?(speed>1?-1.2:0):speed>desired+1?-.8:speed>desired?0:1,
     steer:clamp(error*2.6,-1,1),
-    boost:maxTurn<.32*skill*skill&&Math.abs(error)<.17*skill&&c.nitro>8/skill&&speed>10&&speed<desired+2&&near.distance<track.width*.3*skill,
+    boost:!waitForTrain&&desired>5&&maxTurn<.32*skill*skill&&Math.abs(error)<.17*skill&&c.nitro>8/skill&&speed>10&&speed<desired+2&&near.distance<track.width*.3*skill,
     brake:false,
   };
 }
@@ -82,6 +95,7 @@ export function driveCar(c,world,track,dt,controls) {
     c.vx+=9.81*normal.y*normal.x*dt;c.vz+=9.81*normal.y*normal.z*dt;
   }
   c.x+=c.vx*dt;c.z+=c.vz*dt;
+  for(const train of world.traffic?.trains||[])collideTrain(c,train);
   const edge=track.width/2+.9;
   const boundary=world.nearest(c.x,c.z,c.t);
   if(boundary.distance>edge){

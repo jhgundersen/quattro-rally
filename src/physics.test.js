@@ -14,6 +14,7 @@ for(const track of TRACKS) {
     });
     let highestJump=0;
     for(let frame=0;frame<60*180&&!cars.every(c=>c.finished);frame++) {
+      world.setTime(frame/60);
       for(const c of cars){
         const previous=c.progress;
         driveCar(c,world,track,1/60,aiControls(c,world,track,cars));
@@ -25,7 +26,7 @@ for(const track of TRACKS) {
       collideCars(cars);
     }
     assert.ok(cars.every(c=>c.finished),`stalled drivers: ${cars.map(c=>c.progress.toFixed(2)).join(', ')}`);
-    const paceLimits={gravel:58,forest:82,desert:71,alpine:65,garage:74,bog:140,lemans:85,daytona:75,stavanger:95};
+    const paceLimits={gravel:58,forest:82,desert:71,alpine:65,garage:74,bog:140,lemans:85,daytona:75,stavanger:95,railyard:140};
     assert.ok(Math.max(...cars.map(c=>c.finishTime))<paceLimits[track.id],'rivals maintain competitive three-lap pace');
     if(track.jumps.length)assert.ok(highestJump>.6,'drivers reach the jump sections');
     else assert.equal(highestJump,0,'flat circuits keep cars grounded');
@@ -42,7 +43,7 @@ function timeTrial(track,skill){
   const p=world.at(t,-2),d=world.curve.getTangentAt((t+1)%1);
   const c={i:0,skill,x:p.x,z:p.z,vx:0,vz:0,angle:Math.atan2(d.x,d.z),t:(t+1)%1,progress:t-.035,nitro:100,air:0,vy:0,jumpCooldown:0,finished:false};
   let frame=0;
-  for(;frame<60*220&&c.progress<3;frame++)driveCar(c,world,track,1/60,aiControls(c,world,track,[]));
+  for(;frame<60*220&&c.progress<3;frame++){world.setTime(frame/60);driveCar(c,world,track,1/60,aiControls(c,world,track,[]));}
   return frame/60;
 }
 

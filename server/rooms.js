@@ -89,7 +89,7 @@ export class Room {
  tick(dt,now=Date.now()){
   if(this.phase==='countdown'){this.countdown-=dt;if(this.countdown<=0)this.phase='racing';return;}
   if(this.phase!=='racing')return;
-  this.time+=dt;
+  this.time+=dt;this.world.setTime(this.time);
   for(const c of this.cars){
    if(c.finished)continue;
    const p=this.players[c.i];let controls;

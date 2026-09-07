@@ -39,11 +39,12 @@ export function createDust(scene, {count = 520} = {}) {
   geometry.setAttribute('alpha', new THREE.BufferAttribute(alpha, 1));
   geometry.setAttribute('size', new THREE.BufferAttribute(size, 1));
   const material = new THREE.ShaderMaterial({
-    uniforms:{map:{value:puffTexture()}, scale:{value:12}},
-    vertexShader:`attribute float alpha;attribute float size;uniform float scale;
+    uniforms:{map:{value:puffTexture()}, scale:{value:12}, perspective:{value:false}},
+    vertexShader:`attribute float alpha;attribute float size;uniform float scale;uniform bool perspective;
       varying float vAlpha;varying vec3 vColor;
-      void main(){vAlpha=alpha;vColor=color;gl_PointSize=size*scale;
-        gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.);}`,
+      void main(){vec4 view=modelViewMatrix*vec4(position,1.);vAlpha=alpha;vColor=color;
+        gl_PointSize=min(180.,size*scale/(perspective?max(.5,-view.z):1.));
+        gl_Position=projectionMatrix*view;}`,
     // Vertex colours are in the working space, so hand the result to three's
     // own output transform rather than writing linear values to an sRGB buffer.
     fragmentShader:`uniform sampler2D map;varying float vAlpha;varying vec3 vColor;
@@ -64,7 +65,7 @@ export function createDust(scene, {count = 520} = {}) {
     get live() { let n = 0; for (const l of life) if (l > 0) n++; return n; },
     // The orthographic camera fits the whole arena, so a world-sized puff has
     // to be converted to pixels whenever that framing changes.
-    setScale(pixelsPerUnit) { material.uniforms.scale.value = pixelsPerUnit; },
+    setScale(pixelsPerUnit,perspective=false) { material.uniforms.scale.value = pixelsPerUnit;material.uniforms.perspective.value=perspective; },
     spawn(x, y, z, tone, {radius = 1, opacity = .4, seconds = 1, vx = 0, vy = .8, vz = 0, growth = 1.6} = {}) {
       const i = head; head = (head + 1) % count;
       tint.set(tone);

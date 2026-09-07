@@ -65,6 +65,12 @@ export const TRACKS = [
     tip:'Climb the cobbles through Gamle Stavanger, brake for the garden hairpin, then chase the harbour downhill. Save nitro for the climb.',
     points:[[-44,22],[-46,0],[-42,-27],[-20,-30],[10,-30],[38,-26],[43,-10],[43,14],[35,27],[20,27],[11,18],[11,5],[20,-5],[13,-14],[0,-14],[-8,-5],[-7,12],[-15,24],[-29,27]],
     jumps:[], patches:[], obstacles:[] },
+  { id:'railyard', name:'Rust & Rails', biome:'OLD RAILYARD', difficulty:3, rating:'PRO', width:9, aiSpeed:19, seed:829,
+    layout:'FREIGHT YARD SWITCHBACK', accent:'#d5ad69', revision:1, surface:'concrete', landmark:[25,0], banner:[-4,-40],
+    ground:'#757564', road:'#a19c87', rut:'#96917e', edge:'#eed8a1', rock:'#7d7161', sky:'#919b98', sun:'#ffdfb0', foliage:'#667450',
+    tip:'Weave around the old depot and watch the crossing lights. Brake for the freight trains, then boost through the gap.',
+    points:[[-43,24],[-46,8],[-46,-22],[-35,-29],[-17,-29],[-9,-20],[-12,-8],[-4,0],[9,-5],[10,-19],[21,-29],[36,-26],[45,-14],[43,9],[34,27],[19,29],[11,19],[2,12],[-10,19],[-20,28],[-34,29]],
+    rails:[{z:-10,speed:8,phase:36},{z:9,speed:-7,phase:128}], jumps:[], patches:[], obstacles:[] },
 ];
 export function surfaceAt(x,z,air,patches,base='gravel') {
   if(air>.4)return base;

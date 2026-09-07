@@ -1,4 +1,4 @@
-export const SOUNDTRACK = ['quattro-1.mp3', 'quattro-2.mp3', 'quattro-3.mp3'];
+export const SOUNDTRACK = ['quattro-1.mp3', 'quattro-2.mp3', 'quattro-3.mp3', 'quattro-4.mp3'];
 // One of these closes the race, once: the fanfare if the player beat the ace,
 // the consolation number if they did not.
 export const FINALE_TRACKS = {win:'quattro-winner.mp3', lose:'quattro-not-winner.mp3'};
