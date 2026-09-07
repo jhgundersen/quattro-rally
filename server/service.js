@@ -26,15 +26,20 @@ export function createService({origin=process.env.ORIGIN,trustProxy=false,maxRoo
      let room;
      if(m.room){room=rooms.get(m.room);if(!room)throw Error('This room has expired. Create a new room to race again.');}
      else {if(rooms.size>=maxRooms)throw Error('All rooms are busy. Please try again shortly.');room=new Room(m.track,now);}
-     const seat=room.join(m.name,m.token,now);rooms.set(room.id,room);ws.room=room;ws.slot=seat.slot;
-     send(ws,{type:'joined',...seat,id:room.id});broadcast(room,room.info());if(room.cars&&room.phase!=='lobby')send(ws,room.snapshot());return;
+     const seat=room.join(m.name,m.token,now,m.face);rooms.set(room.id,room);ws.room=room;ws.slot=seat.slot;
+     send(ws,{type:'joined',...seat,id:room.id});send(ws,{type:'chat-log',messages:room.chat});
+     broadcast(room,room.info());broadcast(room,room.say(`${room.players[seat.slot].name} pulled into the lobby.`,-1,'',now));
+     if(room.cars&&room.phase!=='lobby')send(ws,room.snapshot());return;
     }
     if(!ws.room)throw Error('Join a room first.');
-    if(m.type==='leave'){const room=ws.room;room.disconnect(ws.slot,now,true);ws.room=null;broadcast(room,room.info());ws.close(1000);return;}
-    ws.room.action(ws.slot,m,now);if(m.type!=='input'&&m.type!=='active')broadcast(ws.room,ws.room.info());
+    if(m.type==='leave'){const room=ws.room,name=room.players[ws.slot]?.name;room.disconnect(ws.slot,now,true);ws.room=null;broadcast(room,room.info());broadcast(room,room.say(`${name} left the room.`,-1,'',now));ws.close(1000);return;}
+    // Chat is echoed to the room on its own; everything else changes room state.
+    const relay=ws.room.action(ws.slot,m,now);
+    if(relay)broadcast(ws.room,relay);
+    else if(m.type!=='input'&&m.type!=='active')broadcast(ws.room,ws.room.info());
    }catch(e){send(ws,{type:'error',message:e instanceof SyntaxError?'Invalid message.':e.message});}
   });
-  ws.on('close',()=>{peers.delete(ws);if(ws.room){ws.room.disconnect(ws.slot);broadcast(ws.room,ws.room.info());}});
+  ws.on('close',()=>{peers.delete(ws);if(ws.room){const name=ws.room.players[ws.slot]?.name;ws.room.disconnect(ws.slot);broadcast(ws.room,ws.room.info());if(name)broadcast(ws.room,ws.room.say(`${name} dropped out. AI is driving that car.`));}});
  });
  let previous=performance.now(),debt=0,ticks=0;
  const timer=setInterval(()=>{

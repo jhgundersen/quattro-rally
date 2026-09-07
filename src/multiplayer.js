@@ -1,27 +1,64 @@
 import {TRACKS} from './tracks.js';
-import {DRIVERS} from './drivers.js';
+import {DRIVERS,FACES,portrait,cleanFace} from './drivers.js';
 const $=id=>document.getElementById(id);
 const VERSION=1;
 export function createMultiplayer({onRoom,onSnapshot,onLeave,onSeat,onStatus,getTrack,onActivate}){
  let socket,room=null,slot=0,retry=0,timer,closed=true,connecting=false;
  let invite=new URL(location.href).searchParams.get('room')||'',seatToken='';
- try{$('online-name').value=localStorage.getItem('quattro-name')||'';}catch{}
+ let face=0;
+ try{$('online-name').value=localStorage.getItem('quattro-name')||'';face=cleanFace(Number(localStorage.getItem('quattro-face')));}catch{}
  const status=message=>{$('online-status').textContent=message;onStatus?.(message);};
  const send=message=>{if(socket?.readyState===WebSocket.OPEN){socket.send(JSON.stringify(message));return true;}return false;};
+ // The face you race with: your own choice, or the seat's stock driver.
+ const faceOf=i=>room?.players[i]?cleanFace(room.players[i].face,DRIVERS[i].face):DRIVERS[i].face;
+ function renderFaces(){
+  const lobby=!room||room.phase==='lobby';
+  $('online-picker').hidden=!lobby;
+  $('online-face-name').textContent=FACES[face].name;
+  $('online-faces').replaceChildren(...FACES.map((option,i)=>{
+   const button=document.createElement('button');
+   button.type='button';button.className='face-option'+(i===face?' is-picked':'');
+   button.setAttribute('role','radio');button.setAttribute('aria-checked',String(i===face));
+   button.title=option.name;button.setAttribute('aria-label',option.name);
+   button.innerHTML=portrait(i,{color:room?DRIVERS[slot].color:DRIVERS[0].color,trim:room?DRIVERS[slot].trim:undefined,name:option.name});
+   button.onclick=()=>pickFace(i);
+   return button;
+  }));
+ }
+ function pickFace(i){
+  face=cleanFace(i);try{localStorage.setItem('quattro-face',String(face));}catch{}
+  if(room)send({type:'face',face});
+  renderFaces();
+ }
+ function chatLine(message){
+  const li=document.createElement('li'),log=$('chat-log');
+  if(message.slot<0)li.className='is-system';
+  else{
+   const who=document.createElement('b');who.textContent=message.name||`Driver ${message.slot+1}`;
+   who.style.color=DRIVERS[message.slot]?.color||'#eabd72';li.append(who);
+  }
+  li.append(document.createTextNode(message.text));
+  log.append(li);while(log.children.length>60)log.firstChild.remove();
+  log.scrollTop=log.scrollHeight;
+ }
  function render(){
   const joined=!!room,host=room?.host===slot,lobby=room?.phase==='lobby';
   $('online-intro').hidden=joined;$('online-room').hidden=!joined;
   $('online-create').disabled=connecting;$('online-join').disabled=connecting;
   $('online-join').hidden=!invite;$('online-create').hidden=!!invite;
   $('online-cancel').hidden=!invite&&!connecting;
+  renderFaces();
   if(!joined)return;
   $('online-code').textContent=room.id;
   const link=new URL(location.href);link.search='';link.searchParams.set('room',room.id);link.hash='';$('online-link').value=link.href;
   $('online-members').replaceChildren(...DRIVERS.map((driver,i)=>{
    const member=room.players[i],li=document.createElement('li');li.style.setProperty('--driver',driver.color);
+   const avatar=document.createElement('div');avatar.className='member-face';
+   avatar.innerHTML=portrait(faceOf(i),{color:driver.color,trim:driver.trim,name:member?member.name:driver.name});
+   const text=document.createElement('div');
    const name=document.createElement('strong');name.textContent=member?`${member.name}${i===slot?' · YOU':''}`:`${driver.name} · AI`;
    const label=document.createElement('span');label.textContent=member?`${i===room.host?'HOST · ':''}${!member.connected?'RECONNECTING · AI DRIVING':lobby?(member.ready?'READY':'NOT READY'):'RACING'}`:'Fills an empty seat';
-   li.append(name,label);return li;
+   text.append(name,label);li.append(avatar,text);return li;
   }));
   $('online-track').value=room.track;$('online-track').disabled=!host||!lobby;
   $('online-ready').hidden=!lobby;$('online-ready').textContent=room.players[slot]?.ready?'NOT READY':'I’M READY';
@@ -34,15 +71,18 @@ export function createMultiplayer({onRoom,onSnapshot,onLeave,onSeat,onStatus,get
   let welcomed=false;
   const ws=new WebSocket(`${location.protocol==='https:'?'wss:':'ws:'}//${location.host}/multiplayer`);socket=ws;
   const deadline=setTimeout(()=>{if(ws.readyState===WebSocket.CONNECTING)ws.close();},10000);
-  ws.onopen=()=>{clearTimeout(deadline);send({type:'hello',version:VERSION,room:invite||undefined,token:seatToken||undefined,name:$('online-name').value,track:getTrack()});};
+  ws.onopen=()=>{clearTimeout(deadline);send({type:'hello',version:VERSION,room:invite||undefined,token:seatToken||undefined,name:$('online-name').value,face,track:getTrack()});};
   ws.onmessage=event=>{
    let m;try{m=JSON.parse(event.data);}catch{return;}
    if(m.type==='joined'){
-    welcomed=true;invite=m.id;slot=m.slot;seatToken=m.token;retry=0;connecting=false;
+    welcomed=true;invite=m.id;slot=m.slot;seatToken=m.token;retry=0;connecting=false;face=cleanFace(m.face,face);
     try{sessionStorage.setItem(`quattro-seat-${invite}`,seatToken);localStorage.setItem('quattro-name',$('online-name').value);}catch{}
     const url=new URL(location.href);url.searchParams.set('room',invite);history.replaceState(null,'',url);onSeat(slot);status('Connected. Share the link to invite friends.');
-   }else if(m.type==='room'){room=m;render();onRoom(m,slot);}
+    $('chat-log').replaceChildren();
+   }else if(m.type==='room'){room=m;if(m.players[slot])face=cleanFace(m.players[slot].face,face);render();onRoom(m,slot);}
    else if(m.type==='snapshot')onSnapshot(m);
+   else if(m.type==='chat')chatLine(m);
+   else if(m.type==='chat-log'){$('chat-log').replaceChildren();for(const line of m.messages)chatLine(line);}
    else if(m.type==='error'){
     status(m.message);
     if(!welcomed){closed=true;connecting=false;room=null;ws.close();onLeave();render();}
@@ -57,7 +97,7 @@ export function createMultiplayer({onRoom,onSnapshot,onLeave,onSeat,onStatus,get
  }
  function leave(){
   closed=true;connecting=false;clearTimeout(timer);send({type:'leave'});socket?.close();socket=null;
-  room=null;invite='';seatToken='';retry=0;
+  room=null;invite='';seatToken='';retry=0;$('chat-log').replaceChildren();
   const url=new URL(location.href);url.searchParams.delete('room');history.replaceState(null,'',url);
   status('Create a room and send its link to friends. No account needed.');render();onLeave();
  }
@@ -71,10 +111,14 @@ export function createMultiplayer({onRoom,onSnapshot,onLeave,onSeat,onStatus,get
  $('online-back').onclick=()=>send({type:'lobby'});
  $('online-copy').onclick=async()=>{try{await navigator.clipboard.writeText($('online-link').value);status('Invite link copied. Send it to your friends.');}catch{$('online-link').focus();$('online-link').select();status('Copy the selected invite link.');}};
  $('online-link').onclick=()=>{$('online-link').select();};
- if(invite){try{seatToken=sessionStorage.getItem(`quattro-seat-${invite}`)||'';}catch{}status('You’ve been invited. Enter a name and join the room.');}
+ $('chat-form').onsubmit=event=>{
+  event.preventDefault();const text=$('chat-text').value.trim();if(!text)return;
+  if(send({type:'chat',text}))$('chat-text').value='';
+ };
+ if(invite){try{seatToken=sessionStorage.getItem(`quattro-seat-${invite}`)||'';}catch{}status('You’ve been invited. Pick a driver, enter a name and join the room.');}
  render();
  // Returning to this tab always hands control back to the player.
  const active=()=>send({type:'active',active:!document.hidden&&document.hasFocus()});
  addEventListener('blur',active);addEventListener('focus',active);document.addEventListener('visibilitychange',active);
- return {send,leave,get room(){return room;},get slot(){return slot;},get connected(){return socket?.readyState===WebSocket.OPEN;}};
+ return {send,leave,faceOf,get room(){return room;},get slot(){return slot;},get connected(){return socket?.readyState===WebSocket.OPEN;}};
 }

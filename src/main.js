@@ -6,7 +6,7 @@ import { createWorld } from './world.js';
 import { coursePreview } from './course.js';
 import { aiControls,driveCar,collideCars } from './physics.js';
 
-import { DRIVERS, GRID, PLAYER, portrait } from './drivers.js';
+import { DRIVERS, GRID, PLAYER, portrait, cleanFace } from './drivers.js';
 import { createSoundtrack } from './soundtrack.js';
 import { createTrail } from './trail.js';
 import { createDust, dustDensity } from './dust.js';
@@ -52,9 +52,13 @@ const startT=.035;
 const at=(t,lane=0)=>world.at(t,lane);
 const random=Math.random;
 
+const FINISHERS=3;
 let player=PLAYER,online=null,mp,onlineRace=-1,onlineResultShown=false,onlineDriving=true;
 let inputSequence=0,pendingInputs=[],networkTargets=null;
 const driverFor=c=>({...DRIVERS[c.i],name:online?.players[c.i]?.name||DRIVERS[c.i].name,ace:!online?.players[c.i]&&DRIVERS[c.i].ace});
+// A seat keeps its livery; the face is whichever one that driver picked online.
+const faceOf=i=>cleanFace(online?.players[i]?.face,DRIVERS[i].face);
+const seatPortrait=i=>portrait(faceOf(i),{color:DRIVERS[i].color,trim:DRIVERS[i].trim,name:online?.players[i]?.name||DRIVERS[i].name});
 const colors=DRIVERS.map(d=>d.color);
 const TRIM='#252c25';
 // One car per driver, and the player is always the amber one.
@@ -82,7 +86,8 @@ function carModel(color,index){
  scene.add(g);return {g,paint,trim,decal,numberCanvas:number};
 }
 const cars=colors.map((color,i)=>({ ...carModel(color,i),i,x:0,z:0,vx:0,vz:0,angle:0,t:0,progress:0,nitro:100,air:0,vy:0,jumpCooldown:0,finished:false,finishTime:0}));
-const marker=new THREE.Mesh(new THREE.ConeGeometry(.65,1.1,3),new THREE.MeshBasicMaterial({color:'#ffe1a0'}));marker.rotation.z=Math.PI;scene.add(marker);
+// The pointer hovers over the car you are driving, in that car's own colour.
+const marker=new THREE.Mesh(new THREE.ConeGeometry(.65,1.1,3),new THREE.MeshBasicMaterial({color:DRIVERS[PLAYER].color}));marker.rotation.z=Math.PI;scene.add(marker);
 const trails=cars.map(()=>createTrail(scene));
 const dust=createDust(scene,{count:1400});
 let state='ready',raceTime=0,countdown=0,keys=new Set(),last=0,accumulator=0,best=null;
@@ -128,12 +133,13 @@ function updateDrivers(){
   c.paint.color.set(d.color);c.trim.color.set(d.trim||TRIM);
   // The locked ace drives to his own, quicker limits; everyone else shares one.
   c.skill=online?.players[c.i]?1:d.skill||1;}
- $('driver-strip').innerHTML=cars.map(c=>{const d=driverFor(c);return `<span class="driver-chip" style="--driver:${d.color}">${portrait(driverIndex(c))}<span>${d.name}<small>${c.i===player?'YOU':online?.players[c.i]?'ONLINE':d.ace?'ACE':'RIVAL'}</small></span></span>`;}).join('');
+ marker.material.color.set(DRIVERS[player].color);
+ $('driver-strip').innerHTML=cars.map(c=>{const d=driverFor(c);return `<span class="driver-chip" style="--driver:${d.color}">${seatPortrait(c.i)}<span>${d.name}<small>${c.i===player?'YOU':online?.players[c.i]?'ONLINE':d.ace?'ACE':'RIVAL'}</small></span></span>`;}).join('');
 }
 // Nobody picks a car: the grid is fixed, quickest away first and you last.
 function soloLineup(){
 $('lineup').innerHTML=GRID.map((i,slot)=>{const d=DRIVERS[i];
- return `<div class="grid-slot${i===PLAYER?' is-player':''}" style="--driver:${d.color}"><span class="grid-place">P${slot+1}</span>${portrait(i)}<strong>${d.name}</strong><span class="grid-role">${i===PLAYER?'YOU':d.ace?'ACE':'RIVAL'}</span></div>`;}).join('');
+ return `<div class="grid-slot${i===PLAYER?' is-player':''}" style="--driver:${d.color}"><span class="grid-place">P${slot+1}</span>${seatPortrait(i)}<strong>${d.name}</strong><span class="grid-role">${i===PLAYER?'YOU':d.ace?'ACE':'RIVAL'}</span></div>`;}).join('');
 $('lineup').setAttribute('aria-label',`Starting grid: ${GRID.map((i,slot)=>`P${slot+1} ${DRIVERS[i].name}`).join(', ')}`);
 }
 soloLineup();
@@ -192,7 +198,8 @@ function step(dt){
  }
  collideCars(cars);
  if(state==='finishing'){
-  if(cars.every(c=>c.finished)||raceTime-cars[player].finishTime>=25){state='finished';$('status').textContent=pick(MESSAGES.final);}
+  // Three cars home brings out the flag; the last one is left to its own time.
+  if(cars.filter(c=>c.finished).length>=FINISHERS||raceTime-cars[player].finishTime>=25){state='finished';$('status').textContent=pick(MESSAGES.final);}
   renderResults();
  }
  for(const t of trails)t.fade(dt);
@@ -206,9 +213,9 @@ function renderResults(){
  const ordered=raceStandings(cars),order=ordered.map(c=>c.i).join('');
  if(order!==resultOrder){
   resultOrder=order;
-  $('podium').innerHTML=[1,0,2].map(place=>{const c=ordered[place],d=driverFor(c);return `<div class="podium-driver place-${place+1}" style="--driver:${d.color}"><div class="celebrant"><span class="podium-prop" aria-hidden="true">${['🏆','🧇','🔧'][place]}</span>${portrait(driverIndex(c))}</div><strong>${d.name}${c.i===player?' <small>YOU</small>':''}</strong><div class="podium-block"><b>0${place+1}</b><span>${podiumLines[place]}</span></div></div>`;}).join('');
+  $('podium').innerHTML=[1,0,2].map(place=>{const c=ordered[place],d=driverFor(c);return `<div class="podium-driver place-${place+1}" style="--driver:${d.color}"><div class="celebrant"><span class="podium-prop" aria-hidden="true">${['🏆','🧇','🔧'][place]}</span>${seatPortrait(c.i)}</div><strong>${d.name}${c.i===player?' <small>YOU</small>':''}</strong><div class="podium-block"><b>0${place+1}</b><span>${podiumLines[place]}</span></div></div>`;}).join('');
  }
- const rows=ordered.map((c,i)=>`<div class="result-row ${c.i===player?'is-player':''}"><b>0${i+1}</b>${portrait(driverIndex(c))}<span>${driverFor(c).name}${c.i===player?' · YOU':''}</span><time>${c.finished?formatTime(c.finishTime):state==='finished'?'DNF':`LAP ${Math.min(3,Math.floor(Math.max(0,c.progress))+1)} · RACING`}</time></div>`).join('');
+ const rows=ordered.map((c,i)=>`<div class="result-row ${c.i===player?'is-player':''}"><b>0${i+1}</b>${seatPortrait(c.i)}<span>${driverFor(c).name}${c.i===player?' · YOU':''}</span><time>${c.finished?formatTime(c.finishTime):state==='finished'?'DNF':`LAP ${Math.min(3,Math.floor(Math.max(0,c.progress))+1)} · RACING`}</time></div>`).join('');
  if(rows!==resultRows){$('result-times').innerHTML=rows;resultRows=rows;}
  const last=driverIndex(ordered[3]);
  if(last!==quipDriver){quipDriver=last;quipLine=`P4 · ${DRIVERS[last].name}: ${pick(DRIVERS[last].quips)}`;}
@@ -223,8 +230,8 @@ function finish(){
  if(!online&&(best===null||time<best)){best=time;try{localStorage.setItem(`quattro-best-${track.id}-v${track.revision}`,String(best));}catch{}}
  keys.clear();$('race-message').textContent='';$('results').classList.remove('hidden');
  $('results-stage').textContent=beatAce?`${track.name.toUpperCase()} · THE ACE IS BEATEN`:`${track.name.toUpperCase()} · CHEQUERED FLAG`;
- $('results-title').textContent=online?(cars[player].finished?`FINISHED · P${rank}`:'TIME’S UP'):resultTitle(rank,beatAce);
- $('results-summary').textContent=online?(cars[player].finished?`${formatTime(time)} · ONLINE RACE`:'DNF · RACE TIME LIMIT'):`${formatTime(time)} · PERSONAL BEST ${formatTime(best)}`;
+ $('results-title').textContent=online?(cars[player].finished?`FINISHED · P${rank}`:`FLAGGED OFF · P${rank}`):resultTitle(rank,beatAce);
+ $('results-summary').textContent=online?(cars[player].finished?`${formatTime(time)} · ONLINE RACE`:'DNF · THE FLAG WAS OUT'):`${formatTime(time)} · PERSONAL BEST ${formatTime(best)}`;
  $('results').classList.toggle('is-triumph',beatAce);
  soundtrack.finale(beatAce);
  resultOrder='';resultRows='';renderResults();
@@ -250,7 +257,7 @@ function onlineRoom(room,slot){
  document.querySelectorAll('.track-card').forEach(b=>b.disabled=room.phase!=='lobby'||room.host!==player);
  updateDrivers();
  $('lineup').setAttribute('aria-label','Online starting grid');
- $('lineup').innerHTML=GRID.map(i=>`<div class="grid-slot" style="--driver:${colors[i]}">${portrait(i)}<strong>${driverFor(cars[i]).name}</strong><span>${i===player?'YOU':room.players[i]?'ONLINE':'AI'}</span></div>`).join('');
+ $('lineup').innerHTML=GRID.map(i=>`<div class="grid-slot" style="--driver:${colors[i]}">${seatPortrait(i)}<strong>${driverFor(cars[i]).name}</strong><span>${i===player?'YOU':room.players[i]?'ONLINE':'AI'}</span></div>`).join('');
 }
 function receiveSnapshot(s){
  if(!online||s.race<onlineRace)return;

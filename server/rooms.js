@@ -2,30 +2,43 @@ import {randomBytes} from 'node:crypto';
 import {TRACKS} from '../src/tracks.js';
 import {createCourse} from '../src/course.js';
 import {aiControls,driveCar,collideCars} from '../src/physics.js';
-import {DRIVERS,GRID} from '../src/drivers.js';
+import {DRIVERS,GRID,cleanFace} from '../src/drivers.js';
 export const VERSION=1;
+// The flag comes out once this many cars are home; the last one is left out.
+export const FINISHERS=3;
 const token=()=>randomBytes(24).toString('base64url');
 export const cleanName=value=>typeof value==='string'?value.replace(/[^\p{L}\p{N} ._-]/gu,'').trim().slice(0,20):'';
+// Chat is plain text: control characters and runs of whitespace go, and the
+// client only ever writes it into a text node.
+export const cleanText=value=>typeof value==='string'?value.replace(/\p{C}/gu,' ').replace(/\s+/gu,' ').trim().slice(0,140):'';
 export function cleanInput(m){
  return {throttle:m.throttle===1?1:0,steer:m.steer===1?1:m.steer===-1?-1:0,brake:m.brake===true,boost:m.boost===true};
 }
 export class Room {
  constructor(trackId='gravel',now=Date.now()){
   this.id=randomBytes(6).toString('base64url');this.track=TRACKS.find(t=>t.id===trackId)||TRACKS[0];
-  this.players=Array(4).fill(null);this.host=0;this.phase='lobby';this.race=0;this.time=0;this.updated=now;
+  this.players=Array(4).fill(null);this.host=0;this.phase='lobby';this.race=0;this.time=0;this.updated=now;this.chat=[];
  }
- join(name,resume,now=Date.now()){
+ // Every chat line, from a driver or from the room itself, goes through here so
+ // the lobby history and the broadcast can never drift apart.
+ say(text,slot=-1,name='',now=Date.now()){
+  const line={type:'chat',slot,name,text,at:now};
+  this.chat.push(line);if(this.chat.length>40)this.chat.shift();
+  this.updated=now;return line;
+ }
+ join(name,resume,now=Date.now(),face){
   let slot=resume?this.players.findIndex(p=>p?.token===resume):-1;
   if(slot>=0&&this.players[slot].connected)throw Error('This seat is already open in another tab.');
   if(slot<0){
    if(this.phase!=='lobby')throw Error('This race has started. Try again when the room returns to the lobby.');
    slot=this.players.findIndex(p=>!p||(!p.connected&&now-p.seen>60000));
    if(slot<0)throw Error('This room is full (four drivers).');
-   this.players[slot]={name:cleanName(name)||`Driver ${slot+1}`,token:token(),ready:false};
+   this.players[slot]={name:cleanName(name)||`Driver ${slot+1}`,token:token(),ready:false,face:cleanFace(face,DRIVERS[slot].face)};
   }
-  const p=this.players[slot];Object.assign(p,{connected:true,active:true,seen:now,inputs:[],control:{},seq:0,received:0,lastInput:now});
+  const p=this.players[slot];p.face=cleanFace(face,p.face);
+  Object.assign(p,{connected:true,active:true,seen:now,inputs:[],control:{},seq:0,received:0,lastInput:now,lastChat:0});
   if(!this.players[this.host]?.connected)this.host=slot;
-  this.updated=now;return {slot,token:p.token};
+  this.updated=now;return {slot,token:p.token,face:p.face};
  }
  disconnect(slot,now=Date.now(),leave=false){
   const p=this.players[slot];if(!p)return;
@@ -34,6 +47,7 @@ export class Room {
   if(this.host===slot)this.host=this.players.findIndex(p=>p?.connected);
   this.updated=now;
  }
+ // Returns a message to broadcast instead of the room state, or nothing.
  action(slot,m,now=Date.now()){
   const p=this.players[slot];if(!p?.connected)throw Error('Join a room first.');
   if(m.type==='input'){
@@ -42,9 +56,16 @@ export class Room {
    if(p.inputs.length>=12)p.inputs.shift();
    p.inputs.push({seq:m.seq,control:cleanInput(m)});return;
   }
+  if(m.type==='chat'){
+   const text=cleanText(m.text);
+   // A dropped line beats a chat flood filling everyone's lobby.
+   if(!text||now-p.lastChat<500)return;
+   p.lastChat=now;return this.say(text,slot,p.name,now);
+  }
   this.updated=now;
   if(m.type==='active'){p.active=m.active===true;p.inputs=[];p.control={};p.lastInput=now;return;}
   if(m.type==='ready'&&this.phase==='lobby'){p.ready=m.ready===true;return;}
+  if(m.type==='face'&&this.phase==='lobby'){p.face=cleanFace(m.face,p.face);return;}
   if(slot!==this.host)throw Error('Only the host can choose the track or start the race.');
   if(m.type==='track'&&this.phase==='lobby'){
    const track=TRACKS.find(t=>t.id===m.track);if(!track)throw Error('Unknown track.');
@@ -79,8 +100,10 @@ export class Room {
    if(c.progress>=3){c.finished=true;c.finishTime=this.time;if(p)this.deadline=Math.min(this.deadline,this.time+25);}
   }
   collideCars(this.cars);
-  if(this.cars.every(c=>c.finished)||this.time>=this.deadline){this.phase='finished';this.updated=now;}
+  // Three cars home is the chequered flag: nobody waits on the last one.
+  const home=this.cars.filter(c=>c.finished).length;
+  if(home>=Math.min(FINISHERS,this.cars.length)||this.time>=this.deadline){this.phase='finished';this.updated=now;}
  }
- info(){return {type:'room',id:this.id,track:this.track.id,host:this.host,phase:this.phase,race:this.race,players:this.players.map((p,i)=>p?{slot:i,name:p.name,connected:p.connected,ready:p.ready}:null)};}
+ info(){return {type:'room',id:this.id,track:this.track.id,host:this.host,phase:this.phase,race:this.race,players:this.players.map((p,i)=>p?{slot:i,name:p.name,face:p.face,connected:p.connected,ready:p.ready}:null)};}
  snapshot(){return {type:'snapshot',phase:this.phase,race:this.race,time:this.time,countdown:this.countdown,cars:this.cars,acks:this.players.map(p=>p?.seq||0)};}
 }
