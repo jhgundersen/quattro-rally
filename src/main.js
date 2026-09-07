@@ -4,6 +4,7 @@ import { formatTime, raceStandings } from './race.js';
 import { TRACKS, SURFACES } from './tracks.js';
 import { createWorld } from './world.js';
 import { createCockpit } from './cockpit.js';
+import { createCar } from './car.js';
 import { coursePreview } from './course.js';
 import { aiControls,driveCar,collideCars } from './physics.js';
 
@@ -42,12 +43,6 @@ function fitShadows(){
  Object.assign(sun.shadow.camera,{left:-reach,right:reach,top:reach,bottom:-reach});
  sun.shadow.camera.updateProjectionMatrix();
 }
-const mat = (color) => new THREE.MeshStandardMaterial({ color, roughness: 0.94 });
-const dark = mat('#252c25'), white = mat('#e2dcc0');
-function box(w,h,d,material,x=0,y=0,z=0,parent=scene) {
-  const mesh = new THREE.Mesh(new THREE.BoxGeometry(w,h,d),material); mesh.position.set(x,y,z);
-  mesh.castShadow=true; mesh.receiveShadow=true; parent.add(mesh); return mesh;
-}
 let track=TRACKS[0],world=createWorld(scene,track);fitShadows();
 const startT=.035;
 const at=(t,lane=0)=>world.at(t,lane);
@@ -65,28 +60,7 @@ const TRIM='#252c25';
 // One car per driver, and the player is always the amber one.
 const driverIndex=c=>c.i;
 const gridSlot=i=>GRID.indexOf(i);
-// Trim is per car, not shared, so a driver can bring their own two-tone livery.
-function carModel(color,index){
- const g=new THREE.Group(),paint=mat(color),glass=mat('#334747'),trim=mat(TRIM);
- box(1.85,.55,3.55,paint,0,.67,0,g);box(1.98,.3,1.1,paint,0,.66,-1.15,g);box(1.98,.3,1.1,paint,0,.66,1.1,g);
- const cabin=box(1.53,.63,1.65,glass,0,1.23,-.23,g);cabin.rotation.x=-.06;
- box(1.58,.12,1.2,paint,0,1.58,-.36,g);
- box(.2,.67,1.67,paint,-.68,1.22,-.2,g);box(.2,.67,1.67,paint,.68,1.22,-.2,g);
- box(1.92,.25,.2,trim,0,.53,1.79,g);box(1.94,.24,.16,trim,0,.52,-1.79,g);
- box(1.4,.19,.06,trim,0,.84,1.79,g);
- for(const x of [-.69,-.32,.32,.69])box(.26,.2,.07,white,x,.86,1.83,g);
- for(const x of [-.66,.66])box(.35,.16,.06,mat('#b23d30'),x,.83,-1.82,g);
- box(2.1,.14,.48,paint,0,1.28,-1.57,g);for(const x of [-.7,.7])box(.1,.4,.1,trim,x,1.03,-1.57,g);
- box(.34,.02,1.15,white,.3,.965,.99,g);box(.14,.02,1.15,mat('#bd5841'),.57,.97,.99,g);
- for(const x of [-1,1])for(const z of [-1.15,1.12]){
- const wheel=new THREE.Mesh(new THREE.CylinderGeometry(.44,.44,.33,12),trim);wheel.rotation.z=Math.PI/2;wheel.position.set(x,.46,z);wheel.castShadow=true;g.add(wheel);
- const hub=new THREE.Mesh(new THREE.CylinderGeometry(.24,.24,.35,8),white);hub.rotation.z=Math.PI/2;hub.position.copy(wheel.position);g.add(hub);
- }
- const number=document.createElement('canvas');number.width=64;number.height=64;const ctx=number.getContext('2d');ctx.fillStyle='#ece8d5';ctx.fillRect(0,0,64,64);ctx.fillStyle='#26382a';ctx.font='bold 47px monospace';ctx.textAlign='center';ctx.fillText(String(index+1).padStart(2,'0'),32,49);
- const decal=new THREE.Mesh(new THREE.PlaneGeometry(.85,.85),new THREE.MeshBasicMaterial({map:new THREE.CanvasTexture(number)}));decal.rotation.x=-Math.PI/2;decal.position.set(0,1.65,-.3);g.add(decal);
- scene.add(g);return {g,paint,trim,decal,numberCanvas:number};
-}
-const cars=colors.map((color,i)=>({ ...carModel(color,i),i,x:0,z:0,vx:0,vz:0,angle:0,t:0,progress:0,nitro:100,air:0,vy:0,jumpCooldown:0,finished:false,finishTime:0}));
+const cars=colors.map((color,i)=>({ ...createCar(scene,color,i),i,x:0,z:0,vx:0,vz:0,angle:0,t:0,progress:0,nitro:100,air:0,vy:0,jumpCooldown:0,finished:false,finishTime:0}));
 // The pointer hovers over the car you are driving, in that car's own colour.
 const marker=new THREE.Mesh(new THREE.ConeGeometry(.65,1.1,3),new THREE.MeshBasicMaterial({color:DRIVERS[PLAYER].color}));marker.rotation.z=Math.PI;scene.add(marker);
 const trails=cars.map(()=>createTrail(scene));
@@ -316,6 +290,7 @@ function leaveOnline(){
 const roadPose=new THREE.Matrix4(),roadForward=new THREE.Vector3(),roadRight=new THREE.Vector3();
 function syncModels(){
  for(const c of cars){
+  c.updateWheels(c,raceTime);
   if(track.banking||track.hills){
    const frame=world.roadFrame(c.x,c.z,c.t);
    c.g.position.set(c.x,frame.height+c.air,c.z);
