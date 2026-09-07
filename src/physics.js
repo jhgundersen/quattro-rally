@@ -115,15 +115,39 @@ export function driveCar(c,world,track,dt,controls) {
   return {speed,fx,fz,surface};
 }
 
-export function collideCars(cars) {
-  for(let i=0;i<cars.length;i++)for(let j=i+1;j<cars.length;j++){
-    const a=cars[i],b=cars[j];if(Math.abs(a.air-b.air)>1)continue;
-    const dx=b.x-a.x,dz=b.z-a.z,d=Math.hypot(dx,dz);
-    if(d>0&&d<2){
-      const nx=dx/d,nz=dz/d,push=(2-d)*.5;
-      a.x-=nx*push;a.z-=nz*push;b.x+=nx*push;b.z+=nz*push;
-      const v=(a.vx-b.vx)*nx+(a.vz-b.vz)*nz;
-      if(v>0){a.vx-=nx*v*.65;a.vz-=nz*v*.65;b.vx+=nx*v*.65;b.vz+=nz*v*.65;}
+// Match the visible body and tyre footprint instead of a small center circle.
+const CAR_HALF_WIDTH=1.17,CAR_HALF_LENGTH=1.94;
+export function carContact(a,b){
+  if(Math.abs((a.air||0)-(b.air||0))>1)return null;
+  const dx=b.x-a.x,dz=b.z-a.z;
+  if(dx*dx+dz*dz>21)return null;
+  const af={x:Math.sin(a.angle),z:Math.cos(a.angle)},ar={x:af.z,z:-af.x};
+  const bf={x:Math.sin(b.angle),z:Math.cos(b.angle)},br={x:bf.z,z:-bf.x};
+  let depth=Infinity,nx=0,nz=0;
+  for(const axis of [ar,af,br,bf]){
+    const extent=v=>CAR_HALF_LENGTH*Math.abs(v[0].x*axis.x+v[0].z*axis.z)+CAR_HALF_WIDTH*Math.abs(v[1].x*axis.x+v[1].z*axis.z);
+    const separation=dx*axis.x+dz*axis.z,overlap=extent([af,ar])+extent([bf,br])-Math.abs(separation);
+    if(overlap<=0)return null;
+    if(overlap<depth){depth=overlap;const sign=separation<0?-1:1;nx=axis.x*sign;nz=axis.z*sign;}
+  }
+  return {depth,nx,nz};
+}
+
+export function collideCars(cars){
+  // A few passes keep three-car squeezes from pushing one pair back together.
+  for(let pass=0;pass<4;pass++)for(let i=0;i<cars.length;i++)for(let j=i+1;j<cars.length;j++){
+    const a=cars[i],b=cars[j],contact=carContact(a,b);if(!contact)continue;
+    const {nx,nz,depth}=contact,push=(depth+.002)*.5;
+    a.x-=nx*push;a.z-=nz*push;b.x+=nx*push;b.z+=nz*push;
+    const closing=(a.vx-b.vx)*nx+(a.vz-b.vz)*nz;
+    if(closing>0){
+      // Equal mass, a small bounce, and limited side friction: doors rub
+      // without gluing cars together or inventing speed on repeated contact.
+      const impulse=closing*.64;
+      a.vx-=nx*impulse;a.vz-=nz*impulse;b.vx+=nx*impulse;b.vz+=nz*impulse;
+      const tangent=(a.vx-b.vx)*-nz+(a.vz-b.vz)*nx;
+      const friction=clamp(tangent*.12,-impulse*.15,impulse*.15);
+      a.vx+=nz*friction;a.vz-=nx*friction;b.vx-=nz*friction;b.vz+=nx*friction;
     }
   }
 }
