@@ -259,12 +259,10 @@ function receiveSnapshot(s){
  pendingInputs=pendingInputs.filter(p=>p.seq>s.acks[player]);
  Object.assign(cars[player],s.cars[player],{stunt:s.cars[player].stunt?{...s.cars[player].stunt}:null});
  if(s.phase==='racing'&&!s.cars[player].finished){
-  // Replay against disposable peer states, never mutate the server snapshot.
-  const replay=s.cars.map((c,i)=>i===player?cars[player]:{...c,stunt:c.stunt?{...c.stunt}:null});
+  // Online cars are non-solid. Replay only our inputs against the course;
+  // delayed opponent snapshots must never push predicted positions around.
   for(const [i,p] of pendingInputs.entries()){
    world.setTime(s.time+(i+1)/60);driveCar(cars[player],world,track,1/60,p.control);
-   for(const c of replay)if(c.i!==player&&!c.finished){if(c.stunt)driveCar(c,world,track,1/60,{throttle:1});else{c.x+=c.vx/60;c.z+=c.vz/60;}}
-   collideCars(replay);
   }
  }
  for(let i=0;i<4;i++)if(i!==player){
@@ -294,9 +292,6 @@ function stepOnline(dt){
   const target=networkTargets[c.i];
   if(c.i!==player||!active){c.x+=(target.x-c.x)*.35;c.z+=(target.z-c.z)*.35;c.angle+=Math.atan2(Math.sin(target.angle-c.angle),Math.cos(target.angle-c.angle))*.35;c.air+=(target.air-c.air)*.35;}
  }
- // Predict contact immediately after smoothing remote positions. The server
- // remains authoritative and reconciles these cosmetic/predicted corrections.
- collideCars(cars);
  for(const c of cars){
   const speed=Math.hypot(c.vx,c.vz),fx=Math.sin(c.angle),fz=Math.cos(c.angle),slip=Math.abs(c.vx*fz-c.vz*fx);
   if(speed>2.5&&c.air<.2&&!c.stunt)trails[c.i].sample(c.x-fx*1.2,c.z-fz*1.2,c.angle,c.surface,Math.min(.85,.3+slip*.06),(track.banking||track.hills||track.stuntPark)?(x,z)=>world.roadFrame(x,z).height:undefined);

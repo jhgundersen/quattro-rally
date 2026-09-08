@@ -1,7 +1,7 @@
 import {TRACKS} from './tracks.js';
 import {DRIVERS,FACES,portrait,cleanFace} from './drivers.js';
 const $=id=>document.getElementById(id);
-const VERSION=2;
+const VERSION=3;
 export function createMultiplayer({onRoom,onSnapshot,onLeave,onSeat,onStatus,getTrack,onActivate}){
  let socket,room=null,slot=0,retry=0,timer,closed=true,connecting=false;
  let invite=new URL(location.href).searchParams.get('room')||'',seatToken='';

@@ -1,6 +1,6 @@
 import {test} from 'node:test';
 import assert from 'node:assert/strict';
-import {carContact,collideCars} from './physics.js';
+import {carContact,collideCars,driveCar} from './physics.js';
 import {Room} from '../server/rooms.js';
 const car=(x,z,angle=0,vx=0,vz=0)=>({x,z,angle,vx,vz,air:0});
 const energy=cars=>cars.reduce((sum,c)=>sum+c.vx*c.vx+c.vz*c.vz,0);
@@ -33,7 +33,7 @@ test('coincident cars separate finitely, receding cars get no extra impulse, and
  collideCars(jump);assert.deepEqual(jump,before);
 });
 
-test('authoritative multiplayer tick bumps a following car and publishes separated positions',()=>{
+test('online cars pass through one another without contact impulses or position corrections',()=>{
  const room=new Room('gravel',0);
  for(let i=0;i<4;i++){room.join(`Driver ${i}`,null,0);room.action(i,{type:'ready',ready:true},0);}
  room.action(0,{type:'start'},0);room.phase='racing';
@@ -43,9 +43,13 @@ test('authoritative multiplayer tick bumps a following car and publishes separat
   const pos=i<2?{x:p.x+d.x*offset,z:p.z+d.z*offset}:room.world.at(.45+i*.12);
   Object.assign(c,{x:pos.x,z:pos.z,t:i<2?t:.45+i*.12,angle,vx:i===0?d.x*20:0,vz:i===0?d.z*20:0});
  }
- room.tick(1/60,10);
- const [a,b]=room.snapshot().cars;
- assert.ok(b.vx*d.x+b.vz*d.z>5,'the server transfers speed to the car ahead');
- assert.ok(a.vx*d.x+a.vz*d.z<15,'the following driver feels the impact');
- assert.equal(carContact(a,b),null);
+ const independent=structuredClone(room.cars);
+ let overlap=false;
+ for(let frame=0;frame<30;frame++){
+  for(const c of independent)driveCar(c,room.world,room.track,1/60,{});
+  room.tick(1/60,10+frame*17);
+  const [a,b]=room.snapshot().cars;overlap||=!!carContact(a,b);
+  for(const i of [0,1])for(const key of ['x','z','vx','vz'])assert.equal(room.cars[i][key],independent[i][key],`online ${key} matches driving without contact`);
+ }
+ assert.ok(overlap,'the test actually exercises overlapping cars');
 });

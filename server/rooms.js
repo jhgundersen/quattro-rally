@@ -1,10 +1,10 @@
 import {randomBytes} from 'node:crypto';
 import {TRACKS} from '../src/tracks.js';
 import {createCourse} from '../src/course.js';
-import {aiControls,driveCar,collideCars} from '../src/physics.js';
+import {aiControls,driveCar} from '../src/physics.js';
 import {DRIVERS,GRID,cleanFace} from '../src/drivers.js';
 import {scoreRound,tournamentStandings} from '../src/tournament.js';
-export const VERSION=2;
+export const VERSION=3;
 // The flag comes out once this many cars are home; the last one is left out.
 export const FINISHERS=3;
 const token=()=>randomBytes(24).toString('base64url');
@@ -114,7 +114,8 @@ export class Room {
    driveCar(c,this.world,this.track,dt,controls);
    if(c.progress>=3){c.finished=true;c.finishTime=this.time;if(p)this.deadline=Math.min(this.deadline,this.time+25);}
   }
-  collideCars(this.cars);
+  // Online cars pass through one another: contact prediction against delayed
+  // peers otherwise fights authoritative reconciliation on the client.
   // Three cars home is the chequered flag: nobody waits on the last one.
   const home=this.cars.filter(c=>c.finished).length;
   if(home>=Math.min(FINISHERS,this.cars.length)||this.time>=this.deadline){this.phase='finished';this.rounds.push(scoreRound(this.cars,this.track.id));this.updated=now;}
