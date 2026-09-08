@@ -17,13 +17,27 @@ class ArenaCurve extends THREE.Curve {
   }
 }
 
+// The stunt loop exits onto a separate lane. Warp the underlying route too,
+// then remeasure arc length so physics, previews and the exit road agree.
+class StuntCurve extends THREE.Curve {
+  constructor(base,loop){super();this.base=base;this.loop=loop;this.arcLengthDivisions=4000;}
+  getPoint(t,target=new THREE.Vector3()){
+    this.base.getPointAt(t,target);
+    const smooth=x=>{x=Math.max(0,Math.min(1,x));return x*x*(3-2*x);};
+    const l=this.loop;
+    target.z-=l.shift*smooth((t-l.offsetStart)/(l.offsetEnd-l.offsetStart))*(1-smooth((t-.30)/.12));
+    return target;
+  }
+}
+
 // Shared by scenery, driving, previews, and simulation tests.
 export function createCourse(track) {
   // A banked oval is drawn axis-aligned and then turned on the board, so that
   // neither high turn ends up facing the isometric camera edge-on. Banking is
   // still measured in the frame the layout was drawn in.
   const turn=(track.rotation||0)*Math.PI/180,tc=Math.cos(turn),ts=Math.sin(turn);
-  const curve = new ArenaCurve(turn?track.points.map(([x,z])=>[x*tc-z*ts,x*ts+z*tc]):track.points);
+  const base = new ArenaCurve(turn?track.points.map(([x,z])=>[x*tc-z*ts,x*ts+z*tc]):track.points);
+  const curve=track.loop?.offsetStart ? new StuntCurve(base,track.loop) : base;
   const length = curve.getLength();
   const count = 960;
   const points = Array.from({length:count}, (_,i) => curve.getPointAt(i/count));

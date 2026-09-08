@@ -16,12 +16,15 @@ export function createStuntPark(group,course,track){
   const geo=new THREE.BufferGeometry();geo.setAttribute('position',new THREE.Float32BufferAttribute(v,3));geo.setIndex(idx);geo.computeVertexNormals();mesh(geo,color);
  }
  // A complete drivable vertical loop, with yellow rails and concrete feet.
- strip((u,lane)=>loopPose(course,track,u,lane).position,72,track.width,'#50565c');
+ strip((u,lane)=>loopPose(course,track,u,lane).position,160,track.width,'#50565c');
  for(const side of [-1,1])strip((u,lane)=>{const p=loopPose(course,track,u,side*(track.width/2-.18)+lane);return p.position.addScaledVector(p.normal,.07);},160,.23,'#f4cf48');
  for(let i=0;i<36;i+=2)strip((v,lane)=>{const u=(i+v)/36,p=loopPose(course,track,u,lane);return p.position.addScaledVector(p.normal,.035);},2,.18,'#f4cf48');
- for(const u of [.1,.25,.5,.75,.9]){
-  const p=loopPose(course,track,u,0).position;
-  for(const side of [-1,1]){const foot=loopPose(course,track,u,side*(track.width/2+.3)).position;box(.45,Math.max(.2,p.y),.55,'#536879',new THREE.Vector3(foot.x,p.y/2,foot.z));}
+ // Self-supporting side hoops leave the drivable opening clear. Vertical
+ // crown posts would pierce the lower half of the offset road.
+ for(const side of [-1,1])strip((u,lane)=>{const p=loopPose(course,track,u,side*(track.width/2-.12)+lane);return p.position.addScaledVector(p.normal,-.18);},160,.32,'#536879');
+ for(const u of [0,1])for(const side of [-1,1]){
+  const p=loopPose(course,track,u,side*(track.width/2+.4)).position;
+  box(.7,.35,1.3,'#b4b3a2',p.add(new THREE.Vector3(0,.05,0)));
  }
  // Faceted steel pipe: the road runs through it, with broad entrance rings.
  const {start,end}=track.pipe;

@@ -1,5 +1,5 @@
-import {drawbridgeState,collideDrawbridges} from './drawbridges.js';
-import {driveLoop,inLoop,loopSteering} from './stunt-motion.js';
+import {driveDrawbridges} from './drawbridges.js';
+import {driveLoop,inLoop,loopSteering,loopOffset} from './stunt-motion.js';
 import {wrap,advanceProgress} from './race.js';
 import {crossingBlocked,collideTrain} from './trains.js';
 import {SURFACES,surfaceAt,collideObstacle} from './tracks.js';
@@ -65,16 +65,6 @@ export function aiControls(c,world,track,cars=[]) {
       if(distance<8)waitForTrain=true;
     }
   }
-  for(const bridge of track.drawbridges||[]){
-    const distance=((bridge.t-near.t+1)%1)*world.length-(bridge.length||9)/2;
-    if(distance>0&&distance<Math.max(25,speed*speed/18+8)){
-      const arrival=Math.max(0,distance-3)/Math.max(speed,5);
-      if(drawbridgeState(bridge,world.traffic.time).blocked||drawbridgeState(bridge,world.traffic.time+arrival).blocked){
-        desired=Math.min(desired,Math.sqrt(2*9*Math.max(0,distance-4)));
-        if(distance<6)waitForTrain=true;
-      }
-    }
-  }
   return {
     throttle:waitForTrain?(speed>1?-1.2:0):speed>desired+1?-.8:speed>desired?0:1,
     steer:clamp(error*2.6,-1,1),
@@ -90,27 +80,28 @@ export function driveCar(c,world,track,dt,controls) {
   const surface=SURFACES[c.surface];
   let {throttle=0,steer=0,brake=false,boost=false}=controls;
   const skill=c.skill||1;
+  const airborne=c.bridgeGround?0:c.air;
   const speed=Math.hypot(c.vx,c.vz),forward=c.vx*Math.sin(c.angle)+c.vz*Math.cos(c.angle);
   if(c.finished){throttle=.3;boost=false;}
-  c.angle+=steer*2.15*Math.min(speed/5,1)*(forward<-.5?-1:1)*(c.air>.1?.25:1)*dt;
+  c.angle+=steer*2.15*Math.min(speed/5,1)*(forward<-.5?-1:1)*(airborne>.1?.25:1)*dt;
   if(brake)throttle=forward>1?-1.8:-.5;
   boost=boost&&c.nitro>0;
-  const acceleration=(throttle*12+(boost?17:0))*(c.air>.4?1:surface.power);
+  const acceleration=(throttle*12+(boost?17:0))*(airborne>.4?1:surface.power);
   // Skilled drivers spend the bottle freely because it comes back quicker.
   c.nitro=clamp(c.nitro+(boost?-30/skill:5*skill*skill)*dt,0,100);
   const fx=Math.sin(c.angle),fz=Math.cos(c.angle),side=c.vx*fz-c.vz*fx;
-  const grip=c.air>.1?.15:surface.grip,drag=c.air>.4?.3:surface.drag;
+  const grip=airborne>.1?.15:surface.grip,drag=airborne>.4?.3:surface.drag;
   c.vx+=(fx*acceleration-c.vx*drag-side*fz*grip)*dt;
   c.vz+=(fz*acceleration-c.vz*drag+side*fx*grip)*dt;
   if(near.distance>track.width/2){c.vx*=Math.exp(-1.8*dt);c.vz*=Math.exp(-1.8*dt);}
-  if((track.banking||track.hills||track.stuntPark)&&c.air<.1){
+  if((track.banking||track.hills||track.stuntPark)&&airborne<.1){
     // Gravity projected onto the sloped road pulls toward the lower lane.
     const {normal}=world.roadFrame(c.x,c.z,c.t);
     c.vx+=9.81*normal.y*normal.x*dt;c.vz+=9.81*normal.y*normal.z*dt;
   }
   c.x+=c.vx*dt;c.z+=c.vz*dt;
   for(const train of world.traffic?.trains||[])collideTrain(c,train);
-  collideDrawbridges(c,world,track);
+
   const edge=track.width/2+.9;
   const boundary=world.nearest(c.x,c.z,c.t);
   if(boundary.distance>edge){
@@ -124,12 +115,13 @@ export function driveCar(c,world,track,dt,controls) {
     c.vy=4+speed*.12;c.jumpCooldown=.65;
   }
   c.vy-=16*dt;c.air=Math.max(0,c.air+c.vy*dt);if(c.air===0)c.vy=Math.max(0,c.vy);
+  driveDrawbridges(c,world,track);
   for(const o of world.obstacles)collideObstacle(c,o);
   const next=world.nearest(c.x,c.z,c.t).t;
   if(track.loop&&inLoop(track,next)&&!inLoop(track,c.t)){
     const direction=c.t>track.loop.end?-1:1,entryT=direction<0?track.loop.end:track.loop.start;
     const entry=world.at(entryT),dir=world.curve.getTangentAt(entryT),facing=Math.sin(c.angle)*dir.x+Math.cos(c.angle)*dir.z<0?-1:1;
-    c.stunt={u:direction<0?1:0,direction,facing,lane:clamp(-(c.x-entry.x)*dir.z+(c.z-entry.z)*dir.x,-track.width/2+1.3,track.width/2-1.3),speed:Math.max(8,Math.hypot(c.vx,c.vz))};
+    c.stunt={u:direction<0?1:0,direction,facing,lane:loopOffset(track,direction<0?1:0)+clamp(-(c.x-entry.x)*dir.z+(c.z-entry.z)*dir.x,-track.width/2+1.3,track.width/2-1.3),speed:Math.max(8,Math.hypot(c.vx,c.vz))};
     c.progress=advanceProgress(c.t,entryT,c.progress);c.t=entryT;
     return driveLoop(c,world,track,dt,controls);
   }

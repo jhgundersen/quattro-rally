@@ -36,6 +36,8 @@ test('every track has distinct geometry, valid difficulty and passable obstacles
   const {curve,length}=createCourse(t);
   // Inner road edges and barrier offsets must never fold across a hairpin.
   for(let j=0;j<1200;j++){
+    // The loop replaces this projected connector with a separately tested 3D road.
+    if(t.loop&&j/1200>=t.loop.start-.001&&j/1200<=t.loop.end+.001)continue;
     const a=curve.getTangentAt(j/1200),b=curve.getTangentAt((j/1200+.1/length)%1);
     assert.ok(.1/a.angleTo(b)>t.width/2+.85,`${t.id}: hairpin radius too small for barriers`);
   }

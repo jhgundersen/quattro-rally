@@ -2,8 +2,8 @@ import * as THREE from 'three';
 import {advanceProgress} from './race.js';
 export function inLoop(track,t){return !!track.loop&&t>=track.loop.start&&t<=track.loop.end;}
 export function loopOffset(track,u){
- const s=x=>{x=Math.max(0,Math.min(1,x));return x*x*(3-2*x);};
- return (track.loop.shift||0)*s((u-.08)/.48)*(1-s((u-.68)/.32));
+ u=Math.max(0,Math.min(1,u));
+ return -(track.loop.shift||0)*u*u*(3-2*u);
 }
 export function loopCarPose(course,track,state){return loopPose(course,track,state.u,state.lane-loopOffset(track,state.u));}
 export function loopSteering(c,track){
@@ -11,12 +11,15 @@ export function loopSteering(c,track){
  return Math.max(-1,Math.min(1,(s.lane-target)*(s.facing||1)*.85));
 }
 export function loopPose(course,track,u,lane=0){
- const loop=track.loop,a=course.curve.getPointAt(loop.start),b=course.curve.getPointAt(loop.end),delta=b.clone().sub(a),forward=delta.clone().normalize();
+ // The back straight runs east/west; the twelve-metre pitch moves only
+ // towards the exit lane, never back through the ascending ribbon.
+ const loop=track.loop,a=course.curve.getPointAt(loop.start),b=course.curve.getPointAt(loop.end),delta=b.clone().sub(a),forward=new THREE.Vector3(1,0,0);
  const angle=u*Math.PI*2,r=loop.radius,across=new THREE.Vector3(forward.z,0,-forward.x);
- const position=a.addScaledVector(delta,u).addScaledVector(forward,r*Math.sin(angle)).addScaledVector(across,-lane-loopOffset(track,u));
+ const position=a.addScaledVector(forward,delta.x*u+r*Math.sin(angle)).addScaledVector(across,-lane-loopOffset(track,u));
+ position.z+=(delta.z+track.loop.shift)*u;
  position.y=r*(1-Math.cos(angle));
- const tangent=delta.clone().addScaledVector(forward,2*Math.PI*r*Math.cos(angle));tangent.y=2*Math.PI*r*Math.sin(angle);
- const lateral=(loopOffset(track,Math.min(1,u+.0001))-loopOffset(track,Math.max(0,u-.0001)))/(u===0||u===1?.0001:.0002);
+ const tangent=new THREE.Vector3(delta.x,0,delta.z+track.loop.shift).addScaledVector(forward,2*Math.PI*r*Math.cos(angle));tangent.y=2*Math.PI*r*Math.sin(angle);
+ const lateral=-6*loop.shift*u*(1-u);
  tangent.addScaledVector(across,-lateral);
  const distance=tangent.length();tangent.normalize();
  const normal=new THREE.Vector3().crossVectors(tangent,across).normalize(),right=new THREE.Vector3().crossVectors(normal,tangent).normalize();
